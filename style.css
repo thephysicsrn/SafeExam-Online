@@ -1095,7 +1095,7 @@ html, body {
 }
 
 .dash-content {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 30px;
     width: 100%;
@@ -1107,12 +1107,13 @@ html, body {
 
 .students-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(6, 1fr);
     gap: 16px;
     margin-top: 24px;
     overflow-y: auto;
     padding-bottom: 20px;
     flex: 1;
+    align-content: start;
 }
 
 /* Offline state */
@@ -1123,7 +1124,8 @@ html, body {
 }
 
 .student-card.offline {
-    animation: blink-orange 1.5s infinite;
+    animation: blink-orange 1.5s infinite !important;
+    border-width: 2px !important;
 }
 
 .status-offline {
