@@ -415,7 +415,12 @@ $('#form-unlock').addEventListener('submit', async (e) => {
 function unblockExamLocal() {
     state.isBlocked = false;
     overlayBlocked.classList.add('hidden');
-    if (!state.isFullscreen) enterFullscreen();
+    
+    // Navegadores bloqueiam requestFullscreen sem clique direto do usuário.
+    // Portanto, se ele não estiver em tela cheia, mostramos o aviso para ele clicar.
+    if (!state.isFullscreen) {
+        overlayFullscreen.classList.remove('hidden');
+    }
 }
 
 // =========================================
