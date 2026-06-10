@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, remove, serverTimestamp, push, get } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { getDatabase, ref, set, onValue, update, remove, serverTimestamp, push, get, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
 // =========================================================
 // ⚠️ COLE AQUI AS CHAVES DO SEU PROJETO FIREBASE ⚠️
@@ -217,17 +217,26 @@ function openDashboard(sessionId) {
             
             if (student.status === 'active') activeCount++;
             if (student.status === 'blocked') blockedCount++;
+            
+            let isOffline = student.connection === 'offline';
 
             const card = document.createElement('div');
-            card.className = `student-card ${student.status === 'blocked' ? 'blocked' : ''}`;
+            card.className = `student-card ${student.status === 'blocked' ? 'blocked' : ''} ${isOffline ? 'offline' : ''}`;
             
             const infractionsList = student.infractions ? Object.values(student.infractions) : [];
             const lastInfraction = infractionsList.length > 0 ? infractionsList[infractionsList.length - 1].reason : 'Nenhuma infração';
 
+            let statusBadge = '';
+            if (isOffline) {
+                statusBadge = '<span class="card-status status-offline">Sem Conexão</span>';
+            } else {
+                statusBadge = `<span class="card-status status-${student.status}">${student.status === 'active' ? 'Ativo' : 'Bloqueado'}</span>`;
+            }
+
             card.innerHTML = `
                 <div class="card-header">
                     <span class="card-name">${student.name}</span>
-                    <span class="card-status status-${student.status}">${student.status === 'active' ? 'Ativo' : 'Bloqueado'}</span>
+                    ${statusBadge}
                 </div>
                 <div class="card-infractions">Infrações: <strong>${infractionsList.length}</strong></div>
                 ${student.status === 'blocked' ? `<div class="card-reason">${lastInfraction}</div>` : ''}
@@ -242,6 +251,21 @@ function openDashboard(sessionId) {
         $('#stat-active').textContent = activeCount;
         $('#stat-blocked').textContent = blockedCount;
     });
+
+    // Botão de Encerrar Sala
+    $('#btn-finish-exam').onclick = async () => {
+        if (confirm("Deseja realmente encerrar a prova? Todos os alunos serão expulsos imediatamente e não poderão voltar.")) {
+            const sessionRef = ref(db, `safeexam_sessions/${state.sessionId}`);
+            try {
+                await update(sessionRef, { status: 'finished' });
+                alert("Sala encerrada com sucesso!");
+                window.location.hash = ''; 
+                window.location.reload();
+            } catch (e) {
+                alert("Erro ao encerrar a sala.");
+            }
+        }
+    };
 }
 
 // Função global para o botão remoto
@@ -312,9 +336,13 @@ btnStartExam.addEventListener('click', async () => {
 
         const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
         
+        // Define o que acontece se o aluno perder a conexão
+        onDisconnect(studentRef).update({ connection: 'offline' });
+        
         await update(studentRef, {
             name: state.studentName,
             status: 'active',
+            connection: 'online',
             lastPing: serverTimestamp()
         });
         
@@ -327,15 +355,24 @@ btnStartExam.addEventListener('click', async () => {
             // Se o dado ficou nulo, significa que o professor apagou esse aluno do banco
             if (!data) {
                 alert("Você foi removido da sala pelo aplicador.");
-                // Remove o ID salvo para não reutilizar ao recarregar
                 localStorage.removeItem(`safeexam_student_${state.sessionId}`);
                 window.location.reload();
                 return;
             }
             
             if (data && data.status === 'active' && state.isBlocked) {
-                // Professor desbloqueou remotamente!
                 unblockExamLocal();
+            }
+        });
+
+        // Escuta o status geral da sala para ver se o professor a encerrou
+        const sessionRef = ref(db, `safeexam_sessions/${state.sessionId}`);
+        onValue(sessionRef, (snap) => {
+            const session = snap.val();
+            if (session && session.status === 'finished') {
+                alert("A avaliação foi encerrada pelo professor.");
+                localStorage.removeItem(`safeexam_student_${state.sessionId}`);
+                window.location.reload();
             }
         });
 

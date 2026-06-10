@@ -91,12 +91,15 @@
     <!-- SCREEN: DASHBOARD DO APLICADOR                -->
     <!-- ============================================= -->
     <section id="screen-dashboard" class="screen dashboard-mode">
-        <div class="dash-topbar">
-            <div class="dash-logo">
+        <div class="dash-topbar" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px 30px; background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
+            <div class="dash-logo" style="display: flex; align-items: center; gap: 15px;">
                 <img src="logo.png" alt="SESI Escola" class="school-logo-small">
-                <span>SafeExam Dashboard</span>
+                <div>
+                    <h2 style="margin: 0; font-size: 1.2rem; color: var(--text-accent);">SafeExam Dashboard</h2>
+                    <p class="text-muted" style="margin: 0; font-size: 0.9rem;">ID da Sala: <strong id="dash-session-id">---</strong></p>
+                </div>
             </div>
-            <div class="dash-session">Sala: <strong id="dash-session-id">---</strong></div>
+            <button class="btn-primary" id="btn-finish-exam" style="background: var(--danger); border-color: var(--danger); width: auto; padding: 10px 20px;">Finalizar Prova</button>
         </div>
         <div class="dash-content">
             <div class="dash-header">
