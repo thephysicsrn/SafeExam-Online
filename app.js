@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, remove, serverTimestamp, push } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { getDatabase, ref, set, onValue, update, remove, serverTimestamp, push, get } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
 // =========================================================
 // ⚠️ COLE AQUI AS CHAVES DO SEU PROJETO FIREBASE ⚠️
@@ -282,17 +282,36 @@ btnStartExam.addEventListener('click', async () => {
     btnStartExam.disabled = true;
 
     // Registra o aluno no Firebase
-    const savedIdKey = `safeexam_student_${state.sessionId}`;
-    let studentId = localStorage.getItem(savedIdKey);
-    if (!studentId) {
-        studentId = Math.random().toString(36).substring(2, 9);
-        localStorage.setItem(savedIdKey, studentId);
-    }
-    state.studentId = studentId;
-    
-    const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
-    
     try {
+        // Verifica primeiro se já existe alguém com esse NOME exato no banco (ignora maiúsculas/minúsculas)
+        const allStudentsRef = ref(db, `safeexam_sessions/${state.sessionId}/students`);
+        const snapshot = await get(allStudentsRef);
+        const students = snapshot.val() || {};
+        
+        let existingId = null;
+        for (const id in students) {
+            if (students[id].name.toLowerCase() === state.studentName.toLowerCase()) {
+                existingId = id;
+                break;
+            }
+        }
+        
+        if (existingId) {
+            // Achou o nome! Reutiliza a sessão inteira do aluno, não importa o PC
+            state.studentId = existingId;
+        } else {
+            // Tenta pegar da memória local ou cria um novo
+            const savedIdKey = `safeexam_student_${state.sessionId}`;
+            let studentId = localStorage.getItem(savedIdKey);
+            if (!studentId) {
+                studentId = Math.random().toString(36).substring(2, 9);
+                localStorage.setItem(savedIdKey, studentId);
+            }
+            state.studentId = studentId;
+        }
+
+        const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
+        
         await update(studentRef, {
             name: state.studentName,
             status: 'active',
