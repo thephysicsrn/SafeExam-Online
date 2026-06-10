@@ -198,9 +198,11 @@ function initAdminDashboard() {
             const card = document.createElement('div');
             card.style.cssText = 'background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;';
             card.innerHTML = `
-                <div>
+                <div style="flex: 1;">
                     <h3 style="margin: 0; color: var(--text-primary);">${sess.roomName || 'Sem nome'} <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400;">(${sessionId})</span></h3>
-                    <p style="margin: 5px 0 0 0; font-size: 0.9rem;" class="text-muted">Alunos Conectados: <strong>${studentsCount}</strong></p>
+                    <p style="margin: 5px 0 0 0; font-size: 0.9rem;" class="text-muted">Alunos: <strong>${studentsCount}</strong> &nbsp;|&nbsp; Senha: <strong id="pwd-display-${sessionId}">${sess.localPassword || '---'}</strong>
+                        <button onclick="editSessionPassword('${sessionId}')" style="background: none; border: none; color: var(--primary); cursor: pointer; font-size: 0.85rem; text-decoration: underline; margin-left: 6px;">alterar</button>
+                    </p>
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <button class="btn-primary" onclick="localStorage.setItem('last_dash_session', '${sessionId}'); window.open('#aplicador', '_blank')" style="background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 8px 15px;">Espiar Painel</button>
@@ -219,6 +221,16 @@ function initAdminDashboard() {
 window.killSessionAdmin = async function(sessionId) {
     if (confirm("Deseja DESTRUIR essa sala? Todos os alunos serão expulsos.")) {
         await update(ref(db, `safeexam_sessions/${sessionId}`), { status: 'finished' });
+    }
+};
+
+window.editSessionPassword = async function(sessionId) {
+    const newPwd = prompt("Digite a nova senha para esta sala:");
+    if (newPwd && newPwd.length >= 4) {
+        await update(ref(db, `safeexam_sessions/${sessionId}`), { localPassword: newPwd });
+        alert("Senha da sala alterada com sucesso!");
+    } else if (newPwd) {
+        alert("Senha muito curta. Use pelo menos 4 caracteres.");
     }
 };
 
@@ -246,7 +258,8 @@ formSetup.addEventListener('submit', async (e) => {
         const createDocPromise = set(sessionRef, {
             createdAt: serverTimestamp(),
             examUrl: url,
-            roomName: roomName
+            roomName: roomName,
+            localPassword: pwd
         });
 
         const timeoutPromise = new Promise((_, reject) => 
