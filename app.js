@@ -20,6 +20,27 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 // =========================================
+// GLOBAL ADMIN SETTINGS
+// =========================================
+let globalSettings = {
+    requireBlocker: true,
+    masterPassword: 'MateusSesi'
+};
+
+onValue(ref(db, 'admin_settings'), (snap) => {
+    const data = snap.val();
+    if (data) {
+        if (data.requireBlocker !== undefined) globalSettings.requireBlocker = data.requireBlocker;
+        if (data.masterPassword) globalSettings.masterPassword = data.masterPassword;
+    } else {
+        set(ref(db, 'admin_settings'), {
+            masterPassword: 'MateusSesi',
+            requireBlocker: true
+        });
+    }
+});
+
+// =========================================
 // STATE
 // =========================================
 const state = {
@@ -81,7 +102,19 @@ function showScreen(screenKey) {
     screens[screenKey].classList.add('active');
 }
 
+function checkAdminHash() {
+    const hash = window.location.hash;
+    if (hash === '#admin') {
+        document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+        document.getElementById('screen-admin-login').classList.add('active');
+        return true;
+    }
+    return false;
+}
+
 function handleRoute() {
+    if (checkAdminHash()) return;
+    
     const params = new URLSearchParams(window.location.search);
     const mode = params.get('mode');
     
@@ -99,10 +132,13 @@ function handleRoute() {
 
         // Verifica Windows para exigir bloqueador
         state.isWindows = navigator.userAgent.toLowerCase().indexOf('windows') !== -1;
-        if (state.isWindows) {
+        if (state.isWindows && globalSettings.requireBlocker) {
             nativeBlockerArea.style.display = 'block';
             btnStartExam.disabled = true;
             connectToBlocker();
+        } else {
+            nativeBlockerArea.style.display = 'none';
+            btnStartExam.disabled = false;
         }
 
         showScreen('student');
@@ -113,6 +149,78 @@ function handleRoute() {
 
 window.addEventListener('hashchange', handleRoute);
 handleRoute();
+
+// =========================================
+// TELA: ADMIN LOGIN E DASHBOARD
+// =========================================
+document.getElementById('form-admin-login').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const pwd = document.getElementById('input-admin-password').value;
+    
+    if (pwd === globalSettings.masterPassword) {
+        document.getElementById('screen-admin-login').classList.remove('active');
+        document.getElementById('screen-admin-dashboard').classList.add('active');
+        initAdminDashboard();
+    } else {
+        alert("Senha incorreta!");
+    }
+});
+
+function initAdminDashboard() {
+    const toggle = document.getElementById('toggle-require-blocker');
+    toggle.checked = globalSettings.requireBlocker;
+    toggle.onchange = () => {
+        update(ref(db, 'admin_settings'), { requireBlocker: toggle.checked });
+    };
+
+    document.getElementById('btn-save-master-pwd').onclick = async () => {
+        const newPwd = document.getElementById('input-new-master-pwd').value;
+        if (newPwd.length < 4) return alert("Senha muito curta.");
+        await update(ref(db, 'admin_settings'), { masterPassword: newPwd });
+        alert("Senha Master alterada com sucesso!");
+        document.getElementById('input-new-master-pwd').value = '';
+    };
+
+    onValue(ref(db, 'safeexam_sessions'), (snap) => {
+        const sessions = snap.val() || {};
+        const listEl = document.getElementById('admin-sessions-list');
+        listEl.innerHTML = '';
+        
+        let hasActive = false;
+        
+        Object.keys(sessions).forEach(sessionId => {
+            const sess = sessions[sessionId];
+            if (sess.status === 'finished') return; 
+            
+            hasActive = true;
+            const studentsCount = sess.students ? Object.keys(sess.students).length : 0;
+            
+            const card = document.createElement('div');
+            card.style.cssText = 'background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;';
+            card.innerHTML = `
+                <div>
+                    <h3 style="margin: 0; color: var(--text-primary);">Sala: ${sessionId}</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 0.9rem;" class="text-muted">Alunos Conectados: <strong>${studentsCount}</strong></p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-primary" onclick="localStorage.setItem('last_dash_session', '${sessionId}'); window.open('#aplicador', '_blank')" style="background: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 8px 15px;">Espiar Painel</button>
+                    <button class="btn-primary" onclick="killSessionAdmin('${sessionId}')" style="background: var(--danger); border-color: var(--danger); padding: 8px 15px;">Derrubar Sala</button>
+                </div>
+            `;
+            listEl.appendChild(card);
+        });
+        
+        if (!hasActive) {
+            listEl.innerHTML = '<p class="text-muted">Nenhuma sala ativa no momento.</p>';
+        }
+    });
+}
+
+window.killSessionAdmin = async function(sessionId) {
+    if (confirm("Deseja DESTRUIR essa sala? Todos os alunos serão expulsos.")) {
+        await update(ref(db, \`safeexam_sessions/\${sessionId}\`), { status: 'finished' });
+    }
+};
 
 // =========================================
 // TELA 1: SETUP DO APLICADOR

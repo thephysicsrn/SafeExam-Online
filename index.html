@@ -88,6 +88,84 @@
     </section>
 
     <!-- ============================================= -->
+    <!-- SCREEN: ADMIN LOGIN                           -->
+    <!-- ============================================= -->
+    <section id="screen-admin-login" class="screen setup-mode hidden">
+        <div class="setup-container">
+            <div class="setup-logo">
+                <img src="logo.png" alt="SESI Escola" class="school-logo">
+            </div>
+            <div class="setup-box">
+                <h2>Acesso Restrito</h2>
+                <p class="text-muted">Área exclusiva para o Administrador Master.</p>
+                <form id="form-admin-login" style="margin-top: 20px;">
+                    <div class="form-group">
+                        <label>Senha Master</label>
+                        <input type="password" id="input-admin-password" placeholder="Digite a senha master" required>
+                    </div>
+                    <button type="submit" class="btn-primary" style="margin-top: 20px;">Acessar Central</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================= -->
+    <!-- SCREEN: ADMIN DASHBOARD                       -->
+    <!-- ============================================= -->
+    <section id="screen-admin-dashboard" class="screen dashboard-mode hidden">
+        <div class="dash-topbar" style="display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px 30px; background: var(--bg-card); border-bottom: 1px solid var(--border-color);">
+            <div class="dash-logo" style="display: flex; align-items: center; gap: 15px;">
+                <img src="logo.png" alt="SESI Escola" class="school-logo-small">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.2rem; color: var(--text-accent);">Master Admin Central</h2>
+                    <p class="text-muted" style="margin: 0; font-size: 0.9rem;">Controle Total do Sistema</p>
+                </div>
+            </div>
+            <button class="btn-primary" onclick="window.location.hash=''" style="width: auto; padding: 10px 20px;">Sair do Admin</button>
+        </div>
+        <div class="dash-content" style="max-width: 1200px; overflow-y: auto;">
+            
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 30px; margin-top: 20px;">
+                <!-- Salas Ativas -->
+                <div>
+                    <h2>Salas Ativas no Momento</h2>
+                    <div id="admin-sessions-list" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                        <p class="text-muted">Nenhuma sala ativa no momento.</p>
+                    </div>
+                </div>
+
+                <!-- Configurações Globais -->
+                <div>
+                    <h2>Configurações Globais</h2>
+                    <div style="background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 15px;">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <div>
+                                <h3 style="margin: 0; font-size: 1rem;">Bloqueador no Windows</h3>
+                                <p class="text-muted" style="margin: 0; font-size: 0.8rem;">Obrigar download do .exe para Windows</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-require-blocker">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        
+                        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+                        
+                        <div class="form-group">
+                            <label>Alterar Senha Master</label>
+                            <input type="password" id="input-new-master-pwd" placeholder="Nova senha">
+                            <button id="btn-save-master-pwd" class="btn-primary" style="margin-top: 10px; padding: 10px;">Salvar Nova Senha</button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </section>
+
+    <!-- ============================================= -->
     <!-- SCREEN: DASHBOARD DO APLICADOR                -->
     <!-- ============================================= -->
     <section id="screen-dashboard" class="screen dashboard-mode">
