@@ -199,7 +199,7 @@ function initAdminDashboard() {
             card.style.cssText = 'background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;';
             card.innerHTML = `
                 <div>
-                    <h3 style="margin: 0; color: var(--text-primary);">${sess.roomName || 'Sem nome'} <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 400;">(${sessionId})</span></h3>
+                    <h3 style="margin: 0; color: var(--text-primary);">Sala: ${sessionId}</h3>
                     <p style="margin: 5px 0 0 0; font-size: 0.9rem;" class="text-muted">Alunos Conectados: <strong>${studentsCount}</strong></p>
                 </div>
                 <div style="display: flex; gap: 10px;">
@@ -218,7 +218,7 @@ function initAdminDashboard() {
 
 window.killSessionAdmin = async function(sessionId) {
     if (confirm("Deseja DESTRUIR essa sala? Todos os alunos serão expulsos.")) {
-        await update(ref(db, `safeexam_sessions/${sessionId}`), { status: 'finished' });
+        await update(ref(db, \`safeexam_sessions/\${sessionId}\`), { status: 'finished' });
     }
 };
 
@@ -230,7 +230,6 @@ formSetup.addEventListener('submit', async (e) => {
     
     const url = $('#input-exam-url').value.trim();
     const pwd = $('#input-password').value;
-    const roomName = $('#input-room-name').value.trim() || 'Sem nome';
     
     const btn = $('#btn-generate-link');
     const originalText = btn.textContent;
@@ -245,8 +244,7 @@ formSetup.addEventListener('submit', async (e) => {
         const sessionRef = ref(db, `safeexam_sessions/${sessionId}`);
         const createDocPromise = set(sessionRef, {
             createdAt: serverTimestamp(),
-            examUrl: url,
-            roomName: roomName
+            examUrl: url
         });
 
         const timeoutPromise = new Promise((_, reject) => 

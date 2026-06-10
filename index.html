@@ -39,6 +39,11 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="input-room-name">Apelido da Sala (opcional)</label>
+                    <input type="text" id="input-room-name" placeholder="Ex: Turma 9A - Matemática">
+                </div>
+
                 <button type="submit" class="btn-primary" id="btn-generate-link">
                     Gerar Sala de Prova (Firebase)
                 </button>
@@ -121,7 +126,7 @@
                     <p class="text-muted" style="margin: 0; font-size: 0.9rem;">Controle Total do Sistema</p>
                 </div>
             </div>
-            <button class="btn-primary" onclick="window.location.hash=''" style="width: auto; padding: 10px 20px;">Sair do Admin</button>
+            <button class="btn-primary" onclick="window.location.hash=''; window.location.reload();" style="width: auto; padding: 10px 20px;">Sair do Admin</button>
         </div>
         <div class="dash-content" style="max-width: 1200px; overflow-y: auto;">
             
