@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Ambiente seguro para realização de provas online.">
+    <title>SafeExam Online — Ambiente Seguro de Avaliação</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase SDK (Modular V9) -->
+    <script type="module" src="app.js" defer></script>
+</head>
+<body>
+
+    <!-- ============================================= -->
+    <!-- SCREEN 1: SETUP DO APLICADOR                  -->
+    <!-- ============================================= -->
+    <section id="screen-setup" class="screen active">
+        <div class="setup-container">
+            <div class="logo-area">
+                <img src="logo.png" alt="SESI Escola" class="school-logo-main">
+                <h1>SafeExam <span class="accent">Online</span></h1>
+                <p class="subtitle">Ambiente Seguro de Avaliação</p>
+            </div>
+
+            <form id="form-setup" autocomplete="off">
+                <div class="form-group">
+                    <label for="input-exam-url">Link da Prova</label>
+                    <input type="url" id="input-exam-url" placeholder="https://plataforma.escola.com/prova/123" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="input-password">Senha Local do Aplicador</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="input-password" placeholder="Senha para desbloqueio offline" required minlength="4">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary" id="btn-generate-link">
+                    Gerar Sala de Prova (Firebase)
+                </button>
+            </form>
+
+            <!-- GENERATED LINK AREA -->
+            <div id="generated-link-area" class="generated-link-area hidden">
+                <div class="divider"><span>Links Gerados com Sucesso</span></div>
+                
+                <label>1. Link para os Alunos:</label>
+                <div class="link-box">
+                    <input type="text" id="generated-link-input" readonly>
+                    <button type="button" id="btn-copy-link" class="btn-copy">Copiar</button>
+                </div>
+
+                <label style="margin-top: 16px;">2. Seu Painel de Controle (Aplicador):</label>
+                <div class="link-box">
+                    <input type="text" id="generated-dash-input" readonly>
+                    <button type="button" id="btn-copy-dash" class="btn-copy">Copiar</button>
+                </div>
+                
+                <button type="button" id="btn-open-dash" class="btn-secondary" style="margin-top: 16px;">
+                    Abrir Meu Painel de Controle
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================= -->
+    <!-- SCREEN: ACESSO AO PAINEL (LOGIN SIMPLES)      -->
+    <!-- ============================================= -->
+    <section id="screen-dash-login" class="screen">
+        <div class="setup-container">
+            <div class="logo-area">
+                <img src="logo.png" alt="SESI Escola" class="school-logo-main">
+                <h1>Painel do <span class="accent">Aplicador</span></h1>
+                <p class="subtitle">Insira o ID da Sala para monitorar</p>
+            </div>
+            <form id="form-dash-login">
+                <div class="form-group">
+                    <label>ID da Sala (Session ID)</label>
+                    <input type="text" id="input-dash-session" placeholder="Ex: a1b2c3d4" required>
+                </div>
+                <button type="submit" class="btn-primary">Acessar Painel</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ============================================= -->
+    <!-- SCREEN: DASHBOARD DO APLICADOR                -->
+    <!-- ============================================= -->
+    <section id="screen-dashboard" class="screen dashboard-mode">
+        <div class="dash-topbar">
+            <div class="dash-logo">
+                <img src="logo.png" alt="SESI Escola" class="school-logo-small">
+                <span>SafeExam Dashboard</span>
+            </div>
+            <div class="dash-session">Sala: <strong id="dash-session-id">---</strong></div>
+        </div>
+        <div class="dash-content">
+            <div class="dash-header">
+                <h2>Alunos Conectados</h2>
+                <div class="dash-stats">
+                    <span class="stat-badge active"><span id="stat-active">0</span> Ativos</span>
+                    <span class="stat-badge blocked"><span id="stat-blocked">0</span> Bloqueados</span>
+                </div>
+            </div>
+            <div class="students-grid" id="students-grid">
+                <!-- Cards dos alunos serão injetados aqui -->
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================= -->
+    <!-- SCREEN 2: TELA DO ALUNO (INICIAR PROVA)       -->
+    <!-- ============================================= -->
+    <section id="screen-student" class="screen">
+        <div class="student-container">
+            <div class="student-header">
+                <img src="logo.png" alt="SESI Escola" class="school-logo-main">
+                <h2>SafeExam <span class="accent">Online</span></h2>
+            </div>
+
+            <div class="student-welcome" id="student-welcome-name">
+                <p class="welcome-text">Identificação do Aluno</p>
+                <input type="text" id="input-student-name" class="name-input" placeholder="Digite seu nome completo" required>
+            </div>
+
+            <div class="rules-card">
+                <h3>Regras do Ambiente Seguro</h3>
+                <ul class="rules-list">
+                    <li>Atalhos e botão direito bloqueados.</li>
+                    <li>Sair da tela cheia ou mudar de aba gera infração.</li>
+                </ul>
+            </div>
+
+            <!-- NATIVE BLOCKER AREA -->
+            <div id="native-blocker-area" class="rules-card" style="display: none; border-color: var(--warning);">
+                <h3 style="color: var(--warning);">Bloqueador Obrigatório (Windows)</h3>
+                <a href="SafeExamBlocker.exe" download class="btn-primary" style="background: var(--warning); color: #000;">
+                    Baixar SafeExam Blocker
+                </a>
+                <div id="blocker-status" style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--warning); margin-top: 12px;">
+                    <div class="status-dot" style="background: var(--warning); animation: blink 1s infinite;"></div>
+                    <span>Aguardando execução do bloqueador...</span>
+                </div>
+            </div>
+
+            <button type="button" class="btn-primary btn-start" id="btn-start-exam">
+                Entrar em Modo Seguro
+            </button>
+        </div>
+    </section>
+
+    <!-- ============================================= -->
+    <!-- SCREEN 3: AMBIENTE DA PROVA                   -->
+    <!-- ============================================= -->
+    <section id="screen-exam" class="screen">
+        <div class="exam-topbar" id="exam-topbar">
+            <div class="topbar-left">
+                <img src="logo.png" alt="SESI Escola" class="school-logo-small">
+                <span>SafeExam Online</span>
+                <span class="topbar-student" id="topbar-student-name"></span>
+            </div>
+            <div class="topbar-right">
+                <div class="infraction-badge" id="infraction-badge">
+                    <span id="infraction-count">0</span> Infrações
+                </div>
+            </div>
+        </div>
+
+        <div class="exam-content" id="exam-content">
+            <iframe id="exam-iframe" sandbox="allow-forms allow-scripts allow-same-origin allow-popups" allowfullscreen></iframe>
+        </div>
+
+        <!-- OVERLAY: BLOQUEIO -->
+        <div class="overlay-blocked hidden" id="overlay-blocked">
+            <div class="blocked-card">
+                <h2 style="color: var(--danger);">Prova Bloqueada</h2>
+                <p class="blocked-reason" id="blocked-reason">Infração detectada.</p>
+                
+                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 20px;">
+                    Aguarde o professor desbloquear a sua tela remotamente, ou chame-o para desbloqueio manual.
+                </p>
+
+                <div class="infraction-log-area">
+                    <ul id="infraction-log" class="infraction-log"></ul>
+                </div>
+
+                <form id="form-unlock" class="unlock-form" autocomplete="off">
+                    <input type="password" id="input-unlock-password" placeholder="Senha do aplicador (Desbloqueio Manual)">
+                    <button type="submit" class="btn-unlock" id="btn-unlock">Desbloquear Manualmente</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="overlay-fullscreen hidden" id="overlay-fullscreen">
+            <div class="fullscreen-card">
+                <h2 style="color: var(--warning);">Tela Cheia Necessária</h2>
+                <button type="button" class="btn-primary" id="btn-reenter-fullscreen">Retornar à Tela Cheia</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- GLOBAL FOOTER -->
+    <div class="global-footer">
+        Desenvolvido por Mateus Zeca - Todos os direitos reservados
+    </div>
+
+</body>
+</html>
