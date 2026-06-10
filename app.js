@@ -218,7 +218,7 @@ function initAdminDashboard() {
 
 window.killSessionAdmin = async function(sessionId) {
     if (confirm("Deseja DESTRUIR essa sala? Todos os alunos serão expulsos.")) {
-        await update(ref(db, \`safeexam_sessions/\${sessionId}\`), { status: 'finished' });
+        await update(ref(db, `safeexam_sessions/${sessionId}`), { status: 'finished' });
     }
 };
 
