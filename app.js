@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, update, serverTimestamp, push } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { getDatabase, ref, set, onValue, update, remove, serverTimestamp, push } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
 // =========================================================
 // ⚠️ COLE AQUI AS CHAVES DO SEU PROJETO FIREBASE ⚠️
@@ -231,7 +231,10 @@ function openDashboard(sessionId) {
                 </div>
                 <div class="card-infractions">Infrações: <strong>${infractionsList.length}</strong></div>
                 ${student.status === 'blocked' ? `<div class="card-reason">${lastInfraction}</div>` : ''}
-                ${student.status === 'blocked' ? `<button class="btn-unlock-remote" onclick="unlockStudentRemote('${studentId}')">Desbloquear Remotamente</button>` : ''}
+                <div class="card-actions" style="display: flex; gap: 8px; margin-top: 12px;">
+                    ${student.status === 'blocked' ? `<button class="btn-unlock-remote" onclick="unlockStudentRemote('${studentId}')" style="flex: 1;">Desbloquear</button>` : ''}
+                    <button class="btn-remove-student" onclick="removeStudentRemote('${studentId}')" style="flex: 1; padding: 10px; background: transparent; border: 1px solid var(--danger); color: var(--danger); border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;">Remover</button>
+                </div>
             `;
             studentsGrid.appendChild(card);
         });
@@ -250,6 +253,18 @@ window.unlockStudentRemote = async function(studentId) {
         });
     } catch (e) {
         alert("Erro ao desbloquear remotamente.");
+    }
+};
+
+// Função global para remover aluno
+window.removeStudentRemote = async function(studentId) {
+    if (!confirm("Tem certeza que deseja remover este aluno da sala? Ele será desconectado e o trabalho pode ser perdido.")) return;
+    
+    try {
+        const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${studentId}`);
+        await remove(studentRef);
+    } catch (e) {
+        alert("Erro ao remover aluno.");
     }
 };
 
@@ -286,9 +301,19 @@ btnStartExam.addEventListener('click', async () => {
         
         startSecureExam();
         
-        // Fica escutando o próprio documento para saber se foi desbloqueado remotamente
+        // Fica escutando o próprio documento para saber se foi desbloqueado ou removido remotamente
         onValue(studentRef, (snapshot) => {
             const data = snapshot.val();
+            
+            // Se o dado ficou nulo, significa que o professor apagou esse aluno do banco
+            if (!data) {
+                alert("Você foi removido da sala pelo aplicador.");
+                // Remove o ID salvo para não reutilizar ao recarregar
+                localStorage.removeItem(`safeexam_student_${state.sessionId}`);
+                window.location.reload();
+                return;
+            }
+            
             if (data && data.status === 'active' && state.isBlocked) {
                 // Professor desbloqueou remotamente!
                 unblockExamLocal();
