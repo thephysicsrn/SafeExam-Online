@@ -342,13 +342,6 @@ function openDashboard(sessionId) {
             if (student.status === 'blocked') blockedCount++;
             
             let isOffline = student.connection === 'offline';
-            
-            // Detecção rápida via heartbeat: se o último ping foi há mais de 25s, marca como offline
-            if (student.lastPing && typeof student.lastPing === 'number') {
-                const agora = Date.now();
-                const diff = agora - student.lastPing;
-                if (diff > 25000) isOffline = true;
-            }
 
             const card = document.createElement('div');
             card.className = `student-card ${student.status === 'blocked' ? 'blocked' : ''} ${isOffline ? 'offline' : ''}`;
@@ -396,6 +389,13 @@ function openDashboard(sessionId) {
             }
         }
     };
+
+    // Auto-refresh: força releitura a cada 15s para manter o painel atualizado
+    setInterval(() => {
+        get(studentsRef).then((snap) => {
+            // O onValue já atualiza, mas esse get garante um "empurrão" extra
+        }).catch(() => {});
+    }, 15000);
 }
 
 // Função global para o botão remoto
