@@ -267,11 +267,18 @@ btnStartExam.addEventListener('click', async () => {
     btnStartExam.disabled = true;
 
     // Registra o aluno no Firebase
-    state.studentId = Math.random().toString(36).substring(2, 9);
+    const savedIdKey = `safeexam_student_${state.sessionId}`;
+    let studentId = localStorage.getItem(savedIdKey);
+    if (!studentId) {
+        studentId = Math.random().toString(36).substring(2, 9);
+        localStorage.setItem(savedIdKey, studentId);
+    }
+    state.studentId = studentId;
+    
     const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
     
     try {
-        await set(studentRef, {
+        await update(studentRef, {
             name: state.studentName,
             status: 'active',
             lastPing: serverTimestamp()
