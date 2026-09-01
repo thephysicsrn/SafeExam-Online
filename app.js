@@ -718,35 +718,35 @@ function onKeyDown(e) {
     if (!state.isSecureMode) return;
     const key = e.key?.toLowerCase();
     
-    // Bloquear Teclas de Função (F1 a F12)
+    // 1. Bloquear Teclas de Função (F1 a F12)
     if (/^f\d+$/i.test(key)) {
         e.preventDefault();
         e.stopPropagation();
-        registerInfraction(`Tecla de função bloqueada (${e.key})`);
+        registerInfraction(`Tentativa de tecla de função proibida (${e.key})`);
         return;
     }
 
-    // Bloquear atalhos com Ctrl ou Meta/Command
-    if (e.ctrlKey || e.metaKey) {
+    // 2. Bloquear atalhos com Ctrl ou Meta/Command/Windows
+    if (e.ctrlKey || e.metaKey || key === 'meta' || key === 'control') {
         e.preventDefault();
         e.stopPropagation();
-        registerInfraction(`Atalho com ${e.ctrlKey ? 'Ctrl' : 'Cmd'} bloqueado`);
+        registerInfraction(`Atalho proibido (${e.ctrlKey ? 'Ctrl' : 'Windows'} + ${e.key})`);
         return;
     }
 
-    // Bloquear atalhos com Alt
-    if (e.altKey) {
+    // 3. Bloquear atalhos com Alt
+    if (e.altKey || key === 'alt') {
         e.preventDefault();
         e.stopPropagation();
-        registerInfraction(`Atalho com Alt bloqueado`);
+        registerInfraction(`Atalho proibido (Alt + ${e.key})`);
         return;
     }
 
-    // Bloquear PrintScreen e Escape
-    if (key === 'printscreen') {
+    // 4. Bloquear PrintScreen e Escape
+    if (key === 'printscreen' || key === 'escape') {
         e.preventDefault();
         e.stopPropagation();
-        registerInfraction('Captura de tela (PrintScreen) bloqueada');
+        registerInfraction(`Tecla proibida (${e.key})`);
         return;
     }
 }
@@ -832,46 +832,48 @@ function unblockExamLocal() {
 }
 
 // =========================================
-// WEBSOCKET (INTEGRAÇÃO BLOQUEADOR NATIVO)
+// DOWNLOAD DINÂMICO DO SAFEEXAM.BAT
 // =========================================
-function connectToBlocker() {
-    if (state.wsConnection) return;
+document.getElementById('btn-download-bat')?.addEventListener('click', (e) => {
+    if (state.examUrl) {
+        e.preventDefault();
+        const targetUrl = state.examUrl;
+        const batContent = `@echo off
+setlocal EnableDelayedExpansion
+title SafeExam Online - SESI Escola
 
-    if (blockerStatus) {
-        blockerStatus.style.display = 'block';
-        blockerStatus.innerHTML = `<div class="status-dot" style="background: var(--warning); animation: blink 1s infinite;"></div><span>Aguardando execução do bloqueador...</span>`;
-    }
+set "TARGET_URL=${targetUrl}"
 
-    try {
-        const ws = new WebSocket('ws://127.0.0.1:8765');
-        ws.onopen = () => {
-            state.isBlockerConnected = true;
-            state.wsConnection = ws;
-            if (blockerStatus) {
-                blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success);">Bloqueador nativo conectado com sucesso!</span>`;
-            }
-            if (btnStartExam) btnStartExam.disabled = false;
-        };
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.event === "kiosk_closed" && state.isSecureMode && !state.isBlocked) {
-                    registerInfraction('A janela segura da prova foi fechada pelo aluno.');
-                }
-            } catch (e) { }
-        };
-        ws.onclose = () => {
-            state.isBlockerConnected = false;
-            state.wsConnection = null;
-            if (btnStartExam) btnStartExam.disabled = false;
-            if (state.isSecureMode) {
-                registerInfraction('O aplicativo bloqueador nativo foi encerrado.');
-            } else if (state.isWindows) {
-                setTimeout(connectToBlocker, 3000);
-            }
-        };
-        ws.onerror = () => {};
-    } catch (e) {
-        setTimeout(connectToBlocker, 3000);
+REM 1. Ativa Bloqueio de Teclado Nativo em Background
+start "" /b powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand CgBBAGQAZAAtAFQAeQBwAGUAIAAtAFQAeQBwAGUARABlAGYAaQBuAGkAdABpAG8AbgAgAEAAIgAKAHUAcwBpAG4AZwAgAFMAeQBzAHQAZQBtADsACgB1AHMAaQBuAGcAIABTAHkAcwB0AGUAbQAuAFIAdQBuAHQAaQBtAGUALgBJAG4AdABlAHIAbwBwAFMAZQByAHYAaQBjAGUAcwA7AAoAdQBzAGkAbgBnACAAUwB5AHMAdABlAG0ALgBXAGkAbgBkAG8AdwBzAC4ARgBvAHIAbQBzADsACgAKAHAAdQBiAGwAaQBjACAAYwBsAGEAcwBzACAASwBlAHkATABvAGMAawAgAHsACgAgACAAIAAgAHAAcgBpAHYAYQB0AGUAIABjAG8AbgBzAHQAIABpAG4AdAAgAFcASABfAEsARQBZAEIATwBBAFIARABfAEwATAAgAD0AIAAxADMAOwAKACAAIAAgACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAASQBuAHQAUAB0AHIAIABfAGgAbwBvAGsAIAA9ACAASQBuAHQAUAB0AHIALgBaAGUAcgBvADsACgAgACAAIAAgAHAAcgBpAHYAYQB0AGUAIABzAHQAYQB0AGkAYwAgAEgAbwBvAGsAUAByAG8AYwAgAF8AcAByAG8AYwAgAD0AIABDAGEAbABsAGIAYQBjAGsAOwAKACAAIAAgACAAcAByAGkAdgBhAHQAZQAgAGQAZQBsAGUAZwBhAHQAZQAgAEkAbgB0AFAAdAByACAASABvAG8AawBQAHIAbwBjACgAaQBuAHQAIABuAEMAbwBkAGUALAAgAEkAbgB0AFAAdAByACAAdwBQAGEAcgBhAG0ALAAgAEkAbgB0AFAAdAByACAAbABQAGEAcgBhAG0AKQA7AAoACgAgACAAIAAgAHAAdQBiAGwAaQBjACAAcwB0AGEAdABpAGMAIAB2AG8AaQBkACAAUwB0AGEAcgB0ACgAKQAgAHsACgAgACAAIAAgACAAIAAgACAAXwBoAG8AbwBrACAAPQAgAFMAZQB0AFcAaQBuAGQAbwB3AHMASABvAG8AawBFAHgAKABXAEgAXwBLAEUAWQBCAE8AQQBSAEQAXwBMAEwALAAgAF8AcAByAG8AYwAsACAARwBlAHQATQBvAGQAdQBsAGUASABhAG4AZABsAGUAKAAiAHUAcwBlAHIAMwAyACIAKQAsACAAMAApADsACgAgACAAIAAgACAAIAAgACAAQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AUgB1AG4AKAApADsACgAgACAAIAAgAH0ACgAKACAAIAAgACAAcAB1AGIAbABpAGMAIABzAHQAYQB0AGkAYwAgAHYAbwBpAGQAIABTAHQAbwBwACgAKQAgAHsACgAgACAAIAAgACAAIAAgACAAaQBmACAAKABfAGgAbwBvAGsAIAAhAD0AIABJAG4AdABQAHQAcgAuAFoAZQByAG8AKQAgAHsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABVAG4AaABvAG8AawBXAGkAbgBkAG8AdwBzAEgAbwBvAGsARQB4ACgAXwBoAG8AbwBrACkAOwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAF8AaABvAG8AawAgAD0AIABJAG4AdABQAHQAcgAuAFoAZQByAG8AOwAKACAAIAAgACAAIAAgACAAIAB9AAoAIAAgACAAIAAgACAAIAAgAEEAcABwAGwAaQBjAGEAdABpAG8AbgAuAEUAeABpAHQAKAApADsACgAgACAAIAAgAH0ACgAKACAAIAAgACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAASQBuAHQAUAB0AHIAIABDAGEAbABsAGIAYQBjAGsAKABpAG4AdAAgAG4AQwBvAGQAZQAsACAASQBuAHQAUAB0AHIAIAB3AFAAYQByAGEAbQAsACAASQBuAHQAUAB0AHIAIABsAFAAYQByAGEAbQApACAAewAKACAAIAAgACAAIAAgACAAIABpAGYAIAAoAG4AQwBvAGQAZQAgAD4APQAgADAAKQAgAHsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAG4AdAAgAHYAawAgAD0AIABNAGEAcgBzAGgAYQBsAC4AUgBlAGEAZABJAG4AdAAzADIAKABsAFAAYQByAGEAbQApADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAG4AdAAgAGYAbABhAGcAcwAgAD0AIABNAGEAcgBzAGgAYQBsAC4AUgBlAGEAZABJAG4AdAAzADIAKABsAFAAYQByAGEAbQAsACAAOAApADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABiAG8AbwBsACAAYQBsAHQAIAA9ACAAKABmAGwAYQBnAHMAIAAmACAAMAB4ADIAMAApACAAIQA9ACAAMAA7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYgBvAG8AbAAgAGMAdAByAGwAIAA9ACAAKABHAGUAdABLAGUAeQBTAHQAYQB0AGUAKAAwAHgAMQAxACkAIAAmACAAMAB4ADgAMAAwADAAKQAgACEAPQAgADAAOwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGIAbwBvAGwAIABzAGgAaQBmAHQAIAA9ACAAKABHAGUAdABLAGUAeQBTAHQAYQB0AGUAKAAwAHgAMQAwACkAIAAmACAAMAB4ADgAMAAwADAAKQAgACEAPQAgADAAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAARABlAHMAYgBsAG8AcQB1AGUAaQBvACAAZABvACAAUAByAG8AZgBlAHMAcwBvAHIAOgAgAEMAdAByAGwAIAArACAAQQBsAHQAIAArACAAUwBoAGkAZgB0ACAAKwAgAEYAMQAyAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKABjAHQAcgBsACAAJgAmACAAYQBsAHQAIAAmACYAIABzAGgAaQBmAHQAIAAmACYAIAB2AGsAIAA9AD0AIAAwAHgANwBCACkAIAB7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABTAHQAbwBwACgAKQA7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAByAGUAdAB1AHIAbgAgACgASQBuAHQAUAB0AHIAKQAxADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAB9AAoACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAvAC8AIABCAGwAbwBxAHUAZQBhAHIAIABHAGUAcgBlAG4AYwBpAGEAZABvAHIAIABkAGUAIABUAGEAcgBlAGYAYQBzADoAIABDAHQAcgBsACAAKwAgAFMAaABpAGYAdAAgACsAIABFAHMAYwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAYwB0AHIAbAAgACYAJgAgAHMAaABpAGYAdAAgACYAJgAgAHYAawAgAD0APQAgADAAeAAxAEIAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAVABlAGMAbABhACAAVwBpAG4AZABvAHcAcwAgACgARQBzAHEAdQBlAHIAZABhACAAZQAgAEQAaQByAGUAaQB0AGEAKQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAdgBrACAAPQA9ACAAMAB4ADUAQgAgAHwAfAAgAHYAawAgAD0APQAgADAAeAA1AEMAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAQQBsAHQAIAArACAAVABhAGIACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAGYAIAAoAGEAbAB0ACAAJgAmACAAdgBrACAAPQA9ACAAMAB4ADAAOQApACAAcgBlAHQAdUByAG4AIAAoAEkAbgB0AFAAdAByACkAMQA7AAoACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAvAC8AIABCAGwAbwBxAHUAZQBhAHIAIABBAGwAdAAgACsAIABFAHMAYwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAYwB0AHIAbAAgACYAJgAgAHYAawAgAD0APQAgADAAeAAxAEIAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAQQBsAHQAIAArACAARQBzAHAAYQBjAG8ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAGYAIAAoAGEAbAB0ACAAJgAmACAAdgBrACAAPQA9ACAAMAB4ADIAMAApACAAcgBlAHQAdUByAG4AIAAoAEkAbgB0AFAAdAByACkAMQA7AAoACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAvAC8AIABCAGwAbwBxAHUAZQBhAHIAIABBAGwAdAAgACsAIABGADQACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAGYAIAAoAGEAbAB0ACAAJgAmACAAdgBrACAAPQA9ACAAMAB4ADcAMwApACAAcgBlAHQAdUByAG4AIAAoAEkAbgB0AFAAdAByACkAMQA7AAoACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAvAC8AIABCAGwAbwBxAHUAZQBhAHIAIABDAHQAcgBsACAAKwAgAEUAcwBjAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKABjAHQAcgBsACAAJgAmACAAdgBrACAAPQA9ACAAMAB4ADAAOQApACAAcgBlAHQAdUByAG4AIAAoAEkAbgB0AFAAdAByACkAMQA7AAoACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAvAC8AIABCAGwAbwBxAHUAZQBhAHIAIABQAHIAaQBuAHQAUwBjAHIAZQBlAG4ACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAGYAIAAoAHYAawAgAD0APQAgADAAeAAyAEMAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAVABlAGMAbABhAHMAIABGAMQAgAGEAIABGMTIACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAGYAIAAoAHYAawAgAD4APQAgADAAeAA3ADAAIAAmACYAIAB2AGsAIAA8AD0AIAAwAHgANwBCACkAIAByAGUAdAB1AHIAbgAgACgASQBuAHQAUAB0AHIAKQAxADsACgAgACAAIAAgACAAIAAgACAAfQAKACAAIAAgACAAIAAgACAAIAByAGUAdAB1AHIAbgAgAEMAYQBsAGwATgBlAHgAdABIAG8AbwBrAEUAeAAoAF8AaABvAG8AawAsACAAbgBDAG8AZABlACwAIAB3AFAAYQByAGEAbQAsACAAbABQAGEAcgBhAG0AKQA7AAoAIAAgACAAIAB9AAoACgAgACAAIAAgAFsARABsAGwASQBtAHAAbwByAHQAKAAiAHUAcwBlAHIAMwAyAC4AZABsAGwAIIAKQBdACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAAZQB4AHQAZQByAG4AIABJAG4AdABQAHQAcgAgAFMAZQB0AFcAaQBuAGQAbwB3AHMASABvAG8AawBFAHgAKABpAG4AdAAgAGkAZAAsACAASABvAG8AawBQAHIAbwBjACAAbABwAGYAbgAsACAASQBuAHQAUAB0AHIAIABoAE0AbwBkACwAIAB1AGkAbgB0ACAAdABoAHIAZQBhAGQASQBkACkAOwAKACAAIAAgACAAWwBEAGwAbABJAG0AcABvAHIAdAAoACIAdQBzAGUAcgAzADIALgBkAGwAbAAiACkAXQAgAHAAcgBpAHYAYQB0AGUAIABzAHQAYQB0AGkAYwAgAGUAeAB0AGUAcgBuACAAYgBvAG8AbAAgAFUAbgBoAG8AbwBrAFcAaQBuAGQAbwB3AHMASABvAG8AawBFAHgAKABJAG4AdABQAHQAcgAgAGgAaABrACkAOwAKACAAIAAgACAAWwBEAGwAbABJAG0AcABvAHIAdAAoACIAdQBzAGUAcgAzADIALgBkAGwAbAAiACkAXQAgAHAAcgBpAHYAYQB0AGUAIABzAHQAYQB0AGkAYwAgAGUAeAB0AGUAcgBuACAASQBuAHQAUAB0AHIAIABDAGEAbABsAE4AZQB4AHQASABvAG8AawBFAHgAKABJAG4AdABQAHQAcgAgAGgAaABrACwAIABpAG4AdAAgAG4AQwBvAGQAZQAsACAASQBuAHQAUAB0AHIAIAB3AFAAYQByAGEAbQAsACAASQBuAHQAUAB0AHIAIABsAFAAYQByAGEAbQApADsACgAgACAAIAAgAFsARABsAGwASQBtAHAAbwByAHQAKAAiAGsAZQByAG4AZQBsADMAMgAuAGQAbABsACIAKQBdACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAAZQB4AHQAZQByAG4AIABJAG4AdABQAHQAcgAgAEcAZQB0AE0AbwBkAHUAbABlAEgAYQBuAGQAbABlACgAcwB0AHIAaQBuAGcAIABsAHAATQBvAGQAdQBsAGUATgBhAG0AZQApADsACgAgACAAIAAgAFsARABsAGwASQBtAHAAbwByAHQAKAAiAHUAcwBlAHIAMwAyAC4AZABsAGwAIgApAF0AIABwAHIAaQB2AGEAdABlACAAcwB0AGEAdABpAGMAIABlAHgAdABlAHIAbgAgAHMAaABvAHIAdAAgAEcAZQB0AEsAZQB5AFMAdABhAHQAZQAoAGkAbgB0ACAAdgBLAGUAeQApADsACgB9AAoAIgBAACAALQBSAGUAZgBlAHIAZQBuAGMAZQBkAEEAcwBzAGUAbQBiAGwAaQBlAHMAIABTAHkAcwB0AGUAbQAuAFcAaQBuAGQAbwB3AHMALgBGAG8AcgBtAHMACgAKAFsASwBlAHkATABvAGMAawBdADoAOgBTAHQAYQByAHQAKAApAAoA
+
+REM 2. Localiza o Navegador e Abre em Tela Cheia Kiosk
+set "BROWSER="
+if exist "%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe" set "BROWSER=%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe"
+if not defined BROWSER if exist "%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe" set "BROWSER=%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe"
+if not defined BROWSER if exist "%LocalAppData%\\Microsoft\\Edge\\Application\\msedge.exe" set "BROWSER=%LocalAppData%\\Microsoft\\Edge\\Application\\msedge.exe"
+if not defined BROWSER if exist "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" set "BROWSER=%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe"
+if not defined BROWSER if exist "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" set "BROWSER=%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe"
+if not defined BROWSER if exist "%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe" set "BROWSER=%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe"
+
+set "PROFILE=%TEMP%\\SafeExam_Session_%RANDOM%"
+
+if defined BROWSER (
+    start "" /max "!BROWSER!" --kiosk "%TARGET_URL%" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir="%PROFILE%" --app="%TARGET_URL%"
+) else (
+    start "" /max msedge.exe --kiosk "%TARGET_URL%" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir="%PROFILE%" --app="%TARGET_URL%"
+)
+
+exit /b 0
+`;
+        const blob = new Blob([batContent.replace(/\n/g, '\r\n')], { type: 'application/x-msdos-program' });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = 'SafeExam.bat';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     }
-}
+});
