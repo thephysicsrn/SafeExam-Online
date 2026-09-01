@@ -160,11 +160,11 @@ function handleRoute() {
             return;
         }
 
-        // Detecta Windows para sugerir/exigir bloqueador nativo
+        // Detecta Windows para sugerir o lançador nativo Kiosk
         state.isWindows = navigator.userAgent.toLowerCase().indexOf('windows') !== -1;
         if (state.isWindows && globalSettings.requireBlocker) {
             nativeBlockerArea.style.display = 'block';
-            btnStartExam.disabled = true;
+            btnStartExam.disabled = false;
             connectToBlocker();
         } else {
             nativeBlockerArea.style.display = 'none';
@@ -882,7 +882,7 @@ function connectToBlocker() {
         ws.onclose = () => {
             state.isBlockerConnected = false;
             state.wsConnection = null;
-            btnStartExam.disabled = true;
+            btnStartExam.disabled = false;
             if (state.isSecureMode) {
                 registerInfraction('O aplicativo bloqueador nativo foi encerrado.');
             } else if (state.isWindows && globalSettings.requireBlocker) {

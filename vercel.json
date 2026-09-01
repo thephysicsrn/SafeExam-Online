@@ -3,6 +3,23 @@
   "cleanUrls": true,
   "headers": [
     {
+      "source": "/SafeExam.bat",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/x-msdos-program"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=SafeExam.bat"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/SafeExamBlocker.exe",
       "headers": [
         {
