@@ -588,6 +588,27 @@ btnStartExam.addEventListener('click', async () => {
 // =========================================
 // AMBIENTE SEGURO DA PROVA (ALUNO)
 // =========================================
+let examPopupWindow = null;
+
+function openExamWindow() {
+    if (examPopupWindow && !examPopupWindow.closed) {
+        examPopupWindow.focus();
+    } else {
+        const w = window.screen.availWidth || window.innerWidth || 1280;
+        const h = window.screen.availHeight || window.innerHeight || 800;
+        examPopupWindow = window.open(
+            state.examUrl,
+            'SafeExamPortal',
+            `width=${w},height=${h},top=0,left=0,menubar=no,toolbar=no,location=no,status=no,resizable=yes`
+        );
+        if (!examPopupWindow || examPopupWindow.closed || typeof examPopupWindow.closed === 'undefined') {
+            window.location.href = state.examUrl;
+        }
+    }
+}
+
+document.getElementById('btn-focus-exam-window')?.addEventListener('click', openExamWindow);
+
 function startSecureExam() {
     enterFullscreen();
     topbarStudentName.textContent = state.studentName;
@@ -596,7 +617,9 @@ function startSecureExam() {
     showScreen('exam');
     attachSecurityListeners();
 
-    // Se estiver conectado ao SafeExam Blocker nativo (Windows), lança em Modo Kiosk Top-Level
+    const isEducat = (state.examUrl || '').toLowerCase().includes('educat.net.br');
+
+    // 1. Se estiver conectado ao SafeExam Blocker nativo (Windows Kiosk)
     if (state.isBlockerConnected && state.wsConnection && state.wsConnection.readyState === WebSocket.OPEN) {
         try {
             state.wsConnection.send(JSON.stringify({
@@ -608,8 +631,31 @@ function startSecureExam() {
         } catch (err) {
             console.warn("Erro ao enviar comando kiosk:", err);
         }
-    } else {
-        // Modo web comum (iframe)
+        $('#exam-iframe').style.display = 'none';
+        const card = $('#exam-window-card');
+        if (card) {
+            card.classList.remove('hidden');
+            card.style.display = 'flex';
+        }
+    } 
+    // 2. Se for Educat SESI no navegador (Abre em Janela Dedicada para NUNCA ficar branco)
+    else if (isEducat) {
+        $('#exam-iframe').style.display = 'none';
+        const card = $('#exam-window-card');
+        if (card) {
+            card.classList.remove('hidden');
+            card.style.display = 'flex';
+        }
+        openExamWindow();
+    } 
+    // 3. Formulários comuns compatíveis com Iframe (Google Forms, Moodle, etc.)
+    else {
+        const card = $('#exam-window-card');
+        if (card) {
+            card.classList.add('hidden');
+            card.style.display = 'none';
+        }
+        $('#exam-iframe').style.display = 'block';
         examIframe.src = state.examUrl;
     }
 }
