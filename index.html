@@ -259,6 +259,25 @@
 
         <div class="exam-content" id="exam-content">
             <iframe id="exam-iframe" sandbox="allow-forms allow-scripts allow-same-origin allow-popups" allowfullscreen></iframe>
+            
+            <div id="exam-window-card" class="exam-window-card hidden" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 40px;">
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 40px; max-width: 520px; width: 100%; box-shadow: var(--shadow-lg);">
+                    <img src="logo.png" alt="SESI Escola" style="height: 48px; margin-bottom: 20px;">
+                    <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.1); color: var(--success); padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 0.85rem; margin-bottom: 16px;">
+                        <span class="status-dot active" style="background: var(--success);"></span> Monitoramento Ativo
+                    </div>
+                    <h2 style="font-size: 1.4rem; color: var(--text-primary); margin-bottom: 8px;">Avaliação em Andamento</h2>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 24px; line-height: 1.5;">
+                        A plataforma do <strong>SESI Educat</strong> está ativa na janela da prova.
+                    </p>
+                    <button type="button" id="btn-focus-exam-window" class="btn-primary" style="width: 100%; padding: 14px; font-size: 1rem; margin-bottom: 16px;">
+                        🔍 Focar / Reabrir Janela da Prova
+                    </button>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">
+                        ⚠️ Mantenha esta aba aberta para garantir sua conexão contínua com o professor.
+                    </p>
+                </div>
+            </div>
         </div>
 
         <!-- OVERLAY: BLOQUEIO -->
