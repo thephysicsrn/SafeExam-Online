@@ -224,13 +224,16 @@
 
             <!-- NATIVE BLOCKER AREA -->
             <div id="native-blocker-area" class="rules-card" style="border-color: var(--warning); margin-top: 20px;">
-                <h3 style="color: var(--warning);">⚡ Executar em Tela Cheia Nativa (Windows)</h3>
+                <h3 style="color: var(--warning);">⚡ Executar em Modo Seguro (Windows)</h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-                    Baixe o inicializador leve (1 KB) que abre o Educat SESI imediatamente no navegador em modo Kiosk de tela cheia real.
+                    Baixe o aplicativo leve (21 KB) para abrir o Educat SESI em tela cheia com <strong>bloqueio total de teclas e atalhos (Alt+Tab, Win, Alt+F4)</strong>:
                 </p>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <a id="btn-download-bat" href="SafeExam.bat?v=2026_hook" download="SafeExam.bat" class="btn-primary" style="background: var(--warning); color: #000; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
-                        📥 Baixar SafeExam (Windows — 1 KB)
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <a id="btn-download-exe" href="SafeExam.exe?v=3" download="SafeExam.exe" class="btn-primary" style="background: var(--warning); color: #000; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; font-size: 1rem;">
+                        📥 Baixar SafeExam (.exe — 21 KB)
+                    </a>
+                    <a id="btn-download-bat" href="SafeExam.bat?v=3" download="SafeExam.bat" style="color: var(--text-muted); text-decoration: underline; font-size: 0.8rem; text-align: center;">
+                        Ou baixar versão script (.bat — 1 KB)
                     </a>
                 </div>
                 <div id="blocker-status" style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); display: none;"></div>
