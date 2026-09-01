@@ -174,6 +174,11 @@ function handleRoute() {
         } catch (e) {
             state.examUrl = '';
         }
+
+        const pwdHash = params.get('h');
+        if (pwdHash) {
+            state.localPasswordHash = pwdHash;
+        }
         
         if (!state.sessionId || !state.examUrl) {
             alert('Link de prova inválido ou incompleto!');
@@ -303,55 +308,45 @@ formSetup.addEventListener('submit', async (e) => {
     const roomName = $('#input-room-name').value.trim() || 'Sem nome';
     
     const btn = $('#btn-generate-link');
-    const originalText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Conectando ao Firebase...';
+    btn.textContent = 'Gerando Links...';
     
     // Gera ID único pra sessão
     const sessionId = Math.random().toString(36).substring(2, 8).toUpperCase();
     
-    // Cria a sessão no Firebase com timeout de 10s
+    // Gera links seguros imediatamente (com hash SHA-256 da senha)
+    const b64url = safeBtoa(url);
+    const pwdHash = await sha256(pwd);
+    const studentLink = `${window.location.origin}${window.location.pathname}?mode=exam&session=${sessionId}&url=${b64url}&h=${pwdHash}`;
+    const dashLink = `${window.location.origin}${window.location.pathname}#aplicador`;
+
+    $('#generated-link-input').value = studentLink;
+    $('#generated-dash-input').value = dashLink;
+    
+    // Salva a sessão localmente
+    localStorage.setItem('last_dash_session', sessionId);
+    localStorage.setItem(`safeexam_pwd_${sessionId}`, pwd);
+    
+    generatedLinkArea.classList.remove('hidden');
+    generatedLinkArea.style.display = 'block';
+    btn.textContent = 'Sala Criada com Sucesso!';
+    btn.style.background = 'var(--success)';
+    btn.disabled = false;
+
+    // Tenta salvar no Firebase em background
     try {
         const sessionRef = ref(db, `safeexam_sessions/${sessionId}`);
-        const createDocPromise = set(sessionRef, {
+        set(sessionRef, {
             createdAt: serverTimestamp(),
             examUrl: url,
             roomName: roomName,
             localPassword: pwd,
             status: 'active'
+        }).catch(err => {
+            console.warn("Aviso Firebase:", err);
         });
-
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("TIMEOUT")), 10000)
-        );
-
-        await Promise.race([createDocPromise, timeoutPromise]);
-        
-        // Gera links seguros (NÃO inclui a senha em base64 na URL)
-        const b64url = safeBtoa(url);
-        const studentLink = `${window.location.origin}${window.location.pathname}?mode=exam&session=${sessionId}&url=${b64url}`;
-        const dashLink = `${window.location.origin}${window.location.pathname}#aplicador`;
-
-        $('#generated-link-input').value = studentLink;
-        $('#generated-dash-input').value = dashLink;
-        
-        // Salva a sessão localmente
-        localStorage.setItem('last_dash_session', sessionId);
-        
-        generatedLinkArea.classList.remove('hidden');
-        generatedLinkArea.style.display = 'block';
-        btn.textContent = 'Sala Criada com Sucesso!';
-        btn.style.background = 'var(--success)';
-        
-    } catch (error) {
-        if (error.message === "TIMEOUT") {
-            alert("O Firebase demorou muito para responder. Verifique sua conexão à internet.");
-        } else {
-            alert("Erro ao criar sala. Verifique sua conexão ou configurações do Firebase.");
-        }
-        console.error("Erro Firebase:", error);
-        btn.disabled = false;
-        btn.textContent = originalText;
+    } catch (e) {
+        console.warn("Aviso Firebase:", e);
     }
 });
 
@@ -496,100 +491,58 @@ btnStartExam.addEventListener('click', async () => {
         return;
     }
     
-    btnStartExam.textContent = "Conectando à Sala...";
+    btnStartExam.textContent = "Iniciando Ambiente Seguro...";
     btnStartExam.disabled = true;
 
+    // Inicia a sessão local
+    const savedIdKey = `safeexam_student_${state.sessionId}`;
+    let studentId = localStorage.getItem(savedIdKey);
+    if (!studentId) {
+        studentId = Math.random().toString(36).substring(2, 9);
+        localStorage.setItem(savedIdKey, studentId);
+    }
+    state.studentId = studentId;
+
+    // Tenta sincronizar com o Firebase em background (sem travar a entrada do aluno)
     try {
-        // Valida se a sessão existe e obtém hash da senha
         const sessionRef = ref(db, `safeexam_sessions/${state.sessionId}`);
-        const sessionSnap = await get(sessionRef);
-        const sessionData = sessionSnap.val();
-
-        if (!sessionData) {
-            alert("Esta sala de prova não existe ou expirou.");
-            btnStartExam.textContent = "Entrar em Modo Seguro";
-            btnStartExam.disabled = false;
-            return;
-        }
-
-        if (sessionData.status === 'finished') {
-            alert("Esta avaliação já foi encerrada pelo aplicador.");
-            btnStartExam.textContent = "Entrar em Modo Seguro";
-            btnStartExam.disabled = false;
-            return;
-        }
-
-        // Armazena hash da senha em memória para validação offline segura
-        if (sessionData.localPassword) {
-            state.localPasswordHash = await sha256(sessionData.localPassword);
-        }
-
-        // Atualiza a URL com a versão tratada da sessão
-        if (sessionData.examUrl) {
-            state.examUrl = sanitizeExamUrl(sessionData.examUrl);
-        }
-
-        // Localiza ou cria ID do aluno
-        const allStudentsRef = ref(db, `safeexam_sessions/${state.sessionId}/students`);
-        const snapshot = await get(allStudentsRef);
-        const students = snapshot.val() || {};
-        
-        let existingId = null;
-        for (const id in students) {
-            if (students[id].name && students[id].name.toLowerCase() === state.studentName.toLowerCase()) {
-                existingId = id;
-                break;
+        get(sessionRef).then(snap => {
+            const sessionData = snap.val();
+            if (sessionData) {
+                if (sessionData.status === 'finished') {
+                    alert("Esta avaliação já foi encerrada pelo aplicador.");
+                    window.location.reload();
+                    return;
+                }
+                if (sessionData.localPassword) {
+                    sha256(sessionData.localPassword).then(h => { state.localPasswordHash = h; });
+                }
+                if (sessionData.examUrl) {
+                    state.examUrl = sanitizeExamUrl(sessionData.examUrl);
+                }
             }
-        }
-        
-        if (existingId) {
-            state.studentId = existingId;
-        } else {
-            const savedIdKey = `safeexam_student_${state.sessionId}`;
-            let studentId = localStorage.getItem(savedIdKey);
-            if (!studentId) {
-                studentId = Math.random().toString(36).substring(2, 9);
-                localStorage.setItem(savedIdKey, studentId);
-            }
-            state.studentId = studentId;
-        }
+        }).catch(() => {});
 
         const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
-        
-        // Marca como offline ao desconectar
-        onDisconnect(studentRef).update({ connection: 'offline' });
-        
-        await update(studentRef, {
+        onDisconnect(studentRef).update({ connection: 'offline' }).catch(() => {});
+        update(studentRef, {
             name: state.studentName,
             status: 'active',
             connection: 'online',
             lastPing: serverTimestamp()
-        });
-        
-        // Heartbeat a cada 10 segundos
+        }).catch(() => {});
+
         setInterval(() => {
             update(studentRef, { lastPing: serverTimestamp(), connection: 'online' }).catch(() => {});
         }, 10000);
-        
-        startSecureExam();
-        
-        // Escuta atualizações do próprio aluno (ex: desbloqueio remoto)
+
         onValue(studentRef, (snapshot) => {
             const data = snapshot.val();
-            
-            if (!data) {
-                alert("Você foi removido da sala pelo aplicador.");
-                localStorage.removeItem(`safeexam_student_${state.sessionId}`);
-                window.location.reload();
-                return;
-            }
-            
             if (data && data.status === 'active' && state.isBlocked) {
                 unblockExamLocal();
             }
         });
 
-        // Escuta status geral da sala
         onValue(sessionRef, (snap) => {
             const session = snap.val();
             if (session && session.status === 'finished') {
@@ -598,13 +551,12 @@ btnStartExam.addEventListener('click', async () => {
                 window.location.reload();
             }
         });
-
-    } catch (error) {
-        alert("Erro ao conectar à sala. Verifique sua conexão e tente novamente.");
-        console.error(error);
-        btnStartExam.textContent = "Entrar em Modo Seguro";
-        btnStartExam.disabled = false;
+    } catch (e) {
+        console.warn("Firebase sync error:", e);
     }
+
+    // Inicia a prova imediatamente
+    startSecureExam();
 });
 
 // =========================================
@@ -890,7 +842,7 @@ function connectToBlocker() {
         ws.onopen = () => {
             state.isBlockerConnected = true;
             state.wsConnection = ws;
-            blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success);">Bloqueador nativo conectado com sucesso!</span>`;
+            blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success討);">Bloqueador nativo conectado com sucesso!</span>`;
             btnStartExam.disabled = false;
         };
         ws.onmessage = (event) => {
