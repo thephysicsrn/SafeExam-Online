@@ -30,6 +30,27 @@ async function sha256(message) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function safeBtoa(str) {
+    try {
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+    } catch (e) {
+        return encodeURIComponent(str);
+    }
+}
+
+function safeAtob(str) {
+    if (!str) return '';
+    try {
+        return decodeURIComponent(Array.prototype.map.call(atob(str), (c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    } catch (e) {
+        try {
+            return atob(str);
+        } catch (e2) {
+            return decodeURIComponent(str);
+        }
+    }
+}
+
 function sanitizeExamUrl(rawUrl) {
     let url = (rawUrl || '').trim();
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -149,7 +170,7 @@ function handleRoute() {
     } else if (mode === 'exam') {
         state.sessionId = (params.get('session') || '').toUpperCase();
         try {
-            state.examUrl = params.get('url') ? atob(params.get('url')) : '';
+            state.examUrl = params.get('url') ? safeAtob(params.get('url')) : '';
         } catch (e) {
             state.examUrl = '';
         }
@@ -307,7 +328,7 @@ formSetup.addEventListener('submit', async (e) => {
         await Promise.race([createDocPromise, timeoutPromise]);
         
         // Gera links seguros (NÃO inclui a senha em base64 na URL)
-        const b64url = btoa(url);
+        const b64url = safeBtoa(url);
         const studentLink = `${window.location.origin}${window.location.pathname}?mode=exam&session=${sessionId}&url=${b64url}`;
         const dashLink = `${window.location.origin}${window.location.pathname}#aplicador`;
 
@@ -318,6 +339,7 @@ formSetup.addEventListener('submit', async (e) => {
         localStorage.setItem('last_dash_session', sessionId);
         
         generatedLinkArea.classList.remove('hidden');
+        generatedLinkArea.style.display = 'block';
         btn.textContent = 'Sala Criada com Sucesso!';
         btn.style.background = 'var(--success)';
         
