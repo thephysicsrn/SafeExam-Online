@@ -1,133 +1,32 @@
 @echo off
 setlocal EnableDelayedExpansion
-title SafeExam Secure Browser - SESI Escola
+title SafeExam Online - SESI Escola
 
 set "TARGET_URL=https://adaptativo-sesi.educat.net.br"
 if not "%~1"=="" set "TARGET_URL=%~1"
 
-set "EXE_FILE=%TEMP%\SafeExam_Launcher.exe"
+REM =======================================================
+REM 1. Ativa Bloqueio de Teclado Nativo em Background (PowerShell API)
+REM =======================================================
+start "" /b powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand CgBBAGQAZAAtAFQAeQBwAGUAIAAtAFQAeQBwAGUARABlAGYAaQBuAGkAdABpAG8AbgAgAEAAIgAKAHUAcwBpAG4AZwAgAFMAeQBzAHQAZQBtADsACgB1AHMAaQBuAGcAIABTAHkAcwB0AGUAbQAuAFIAdQBuAHQAaQBtAGUALgBJAG4AdABlAHIAbwBwAFMAZQByAHYAaQBjAGUAcwA7AAoAdQBzAGkAbgBnACAAUwB5AHMAdABlAG0ALgBXAGkAbgBkAG8AdwBzAC4ARgBvAHIAbQBzADsACgAKAHAAdQBiAGwAaQBjACAAYwBsAGEAcwBzACAASwBlAHkATABvAGMAawAgAHsACgAgACAAIAAgAHAAcgBpAHYAYQB0AGUAIABjAG8AbgBzAHQAIABpAG4AdAAgAFcASABfAEsARQBZAEIATwBBAFIARABfAEwATAAgAD0AIAAxADMAOwAKACAAIAAgACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAASQBuAHQAUAB0AHIAIABfAGgAbwBvAGsAIAA9ACAASQBuAHQAUAB0AHIALgBaAGUAcgBvADsACgAgACAAIAAgAHAAcgBpAHYAYQB0AGUAIABzAHQAYQB0AGkAYwAgAEgAbwBvAGsAUAByAG8AYwAgAF8AcAByAG8AYwAgAD0AIABDAGEAbABsAGIAYQBjAGsAOwAKACAAIAAgACAAcAByAGkAdgBhAHQAZQAgAGQAZQBsAGUAZwBhAHQAZQAgAEkAbgB0AFAAdAByACAASABvAG8AawBQAHIAbwBjACgAaQBuAHQAIABuAEMAbwBkAGUALAAgAEkAbgB0AFAAdAByACAAdwBQAGEAcgBhAG0ALAAgAEkAbgB0AFAAdAByACAAbABQAGEAcgBhAG0AKQA7AAoACgAgACAAIAAgAHAAdQBiAGwAaQBjACAAcwB0AGEAdABpAGMAIAB2AG8AaQBkACAAUwB0AGEAcgB0ACgAKQAgAHsACgAgACAAIAAgACAAIAAgACAAXwBoAG8AbwBrACAAPQAgAFMAZQB0AFcAaQBuAGQAbwB3AHMASABvAG8AawBFAHgAKABXAEgAXwBLAEUAWQBCAE8AQQBSAEQAXwBMAEwALAAgAF8AcAByAG8AYwAsACAARwBlAHQATQBvAGQAdQBsAGUASABhAG4AZABsAGUAKAAiAHUAcwBlAHIAMwAyACIAKQAsACAAMAApADsACgAgACAAIAAgACAAIAAgACAAQQBwAHAAbABpAGMAYQB0AGkAbwBuAC4AUgB1AG4AKAApADsACgAgACAAIAAgAH0ACgAKACAAIAAgACAAcAB1AGIAbABpAGMAIABzAHQAYQB0AGkAYwAgAHYAbwBpAGQAIABTAHQAbwBwACgAKQAgAHsACgAgACAAIAAgACAAIAAgACAAaQBmACAAKABfAGgAbwBvAGsAIAAhAD0AIABJAG4AdABQAHQAcgAuAFoAZQByAG8AKQAgAHsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABVAG4AaABvAG8AawBXAGkAbgBkAG8AdwBzAEgAbwBvAGsARQB4ACgAXwBoAG8AbwBrACkAOwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAF8AaABvAG8AawAgAD0AIABJAG4AdABQAHQAcgAuAFoAZQByAG8AOwAKACAAIAAgACAAIAAgACAAIAB9AAoAIAAgACAAIAAgACAAIAAgAEEAcABwAGwAaQBjAGEAdABpAG8AbgAuAEUAeABpAHQAKAApADsACgAgACAAIAAgAH0ACgAKACAAIAAgACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAASQBuAHQAUAB0AHIAIABDAGEAbABsAGIAYQBjAGsAKABpAG4AdAAgAG4AQwBvAGQAZQAsACAASQBuAHQAUAB0AHIAIAB3AFAAYQByAGEAbQAsACAASQBuAHQAUAB0AHIAIABsAFAAYQByAGEAbQApACAAewAKACAAIAAgACAAIAAgACAAIABpAGYAIAAoAG4AQwBvAGQAZQAgAD4APQAgADAAKQAgAHsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAG4AdAAgAHYAawAgAD0AIABNAGEAcgBzAGgAYQBsAC4AUgBlAGEAZABJAG4AdAAzADIAKABsAFAAYQByAGEAbQApADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAG4AdAAgAGYAbABhAGcAcwAgAD0AIABNAGEAcgBzAGgAYQBsAC4AUgBlAGEAZABJAG4AdAAzADIAKABsAFAAYQByAGEAbQAsACAAOAApADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABiAG8AbwBsACAAYQBsAHQAIAA9ACAAKABmAGwAYQBnAHMAIAAmACAAMAB4ADIAMAApACAAIQA9ACAAMAA7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAYgBvAG8AbAAgAGMAdAByAGwAIAA9ACAAKABHAGUAdABLAGUAeQBTAHQAYQB0AGUAKAAwAHgAMQAxACkAIAAmACAAMAB4ADgAMAAwADAAKQAgACEAPQAgADAAOwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGIAbwBvAGwAIABzAGgAaQBmAHQAIAA9ACAAKABHAGUAdABLAGUAeQBTAHQAYQB0AGUAKAAwAHgAMQAwACkAIAAmACAAMAB4ADgAMAAwADAAKQAgACEAPQAgADAAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAARABlAHMAYgBsAG8AcQB1AGUAaQBvACAAZABvACAAUAByAG8AZgBlAHMAcwBvAHIAOgAgAEMAdAByAGwAIAArACAAQQBsAHQAIAArACAAUwBoAGkAZgB0ACAAKwAgAEYAMQAyAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKABjAHQAcgBsACAAJgAmACAAYQBsAHQAIAAmACYAIABzAGgAaQBmAHQAIAAmACYAIAB2AGsAIAA9AD0AIAAwAHgANwBCACkAIAB7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIABTAHQAbwBwACgAKQA7AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAByAGUAdAB1AHIAbgAgACgASQBuAHQAUAB0AHIAKQAxADsACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAB9AAoACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAvAC8AIABCAGwAbwBxAHUAZQBhAHIAIABHAGUAcgBlAG4AYwBpAGEAZABvAHIAIABkAGUAIABUAGEAcgBlAGYAYQBzADoAIABDAHQAcgBsACAAKwAgAFMAaABpAGYAdAAgACsAIABFAHMAYwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAYwB0AHIAbAAgACYAJgAgAHMAaABpAGYAdAAgACYAJgAgAHYAawAgAD0APQAgADAAeAAxAEIAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAVABlAGMAbABhACAAVwBpAG4AZABvAHcAcwAgACgARQBzAHEAdQBlAHIAZABhACAAZQAgAEQAaQByAGUAaQB0AGEAKQAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAdgBrACAAPQA9ACAAMAB4ADUAQgAgAHwAfAAgAHYAawAgAD0APQAgADAAeAA1AEMAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAQQBsAHQAIAArACAAVABhAGIACgAgACAAIAAgACAAIAAgACAAIAAgACAAIABpAGYAIAAoAGEAbAB0ACAAJgAmACAAdgBrACAAPQA9ACAAMAB4ADAAOQApACAAcgBlAHQAdUByAG4AIAAoAEkAbgB0AFAAdAByACkAMQA7AAoACgAgACAAIAAgACAAIAAgACAAIAAgACAAIAAvAC8AIABCAGwAbwBxAHUAZQBhAHIAIABBAGwAdAAgACsAIABFAHMAYwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAYQBsAHQAIAAmACYAIAB2AGsAIAA9AD0AIAAwAHgAMQBCACkAIAByAGUAdAB1AHIAbgAgACgASQBuAHQAUAB0AHIAKQAxADsACgAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAC8ALwAgAEIAbABvAHEAdQBlAGEAcgAgAEEAbAB0ACAAKwAgAEUAcwBwAGEAYwBvAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKABhAGwAdAAgACYAJgAgAHYAawAgAD0APQAgADAAeAAyADAAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAQQBsAHQAIAArACAARgA0AAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKABhAGwAdAAgACYAJgAgAHYAawAgAD0APQAgADAAeAA3ADMAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAQwB0AHIAbAAgACsAIABFAHMAYwAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAGkAZgAgACgAYwB0AHIAbAAgACYAJgAgAHYAawAgAD0APQAgADAAeAAxAEIAKQAgAHIAZQB0AHUAcgBuACAAKABJAG4AdABQAHQAcgApADEAOwAKAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAALwAvACAAQgBsAG8AcQB1AGUAYQByACAAUAByAGkAbgB0AFMAYwByAGUAZQBuAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKAB2AGsAIAA9AD0AIAAwAHgAMgBDACkAIAByAGUAdAB1AHIAbgAgACgASQBuAHQAUAB0AHIAKQAxADsACgAKACAAIAAgACAAIAAgACAAIAAgACAAIAAgAC8ALwAgAEIAbABvAHEAdQBlAGEAcgAgAFQAZQBjAGwAYQBzACAARgAxACAAYQAgAEYAMQAyAAoAIAAgACAAIAAgACAAIAAgACAAIAAgACAAaQBmACAAKAB2AGsAIAA+AD0AIAAwAHgANwAwACAAJgAmACAAdgBrACAAPAA9ACAAMAB4ADcAQgApACAAcgBlAHQAdUByAG4AIAAoAEkAbgB0AFAAdAByACkAMQA7AAoAIAAgACAAIAAgACAAIAAgAH0ACgAgACAAIAAgACAAIAAgACAAcgBlAHQAdUByAG4AIABDAGEAbABsAE4AZQB4AHQASABvAG8AawBFAHgAKABfAGgAbwBvAGsALAAgAG4AQwBvAGQAZQAsACAAdwBQAGEAcgBhAG0ALAAgAGwAUABhAHIAYQBtACkAOwAKACAAIAAgACAAfQAKAAoAIAAgACAAIABbAEQAbABsAEkAbQBwAG8AcgB0ACgAIgB1AHMAZQByADMAMgAuAGQAbABsACIAKQBdACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAAZQB4AHQAZQByAG4AIABJAG4AdABQAHQAcgAgAFMAZQB0AFcAaQBuAGQAbwB3AHMASABvAG8AawBFAHgAKABpAG4AdAAgAGkAZAAsACAASABvAG8AawBQAHIAbwBjACAAbABwAGYAbgAsACAASQBuAHQAUAB0AHIAIABoAE0AbwBkACwAIAB1AGkAbgB0ACAAdABoAHIAZQBhAGQASQBkACkAOwAKACAAIAAgACAAWwBEAGwAbABJAG0AcABvAHIAdAAoACIAdQBzAGUAcgAzADIALgBkAGwAbAAiACkAXQAgAHAAcgBpAHYAYQB0AGUAIABzAHQAYQB0AGkAYwAgAGUAeAB0AGUAcgBuACAAYgBvAG8AbAAgAFUAbgBoAG8AbwBrAFcAaQBuAGQAbwB3AHMASABvAG8AawBFAHgAKABJAG4AdABQAHQAcgAgAGgAaABrACkAOwAKACAAIAAgACAAWwBEAGwAbABJAG0AcABvAHIAdAAoACIAdQBzAGUAcgAzADIALgBkAGwAbAAiACkAXQAgAHAAcgBpAHYAYQB0AGUAIABzAHQAYQB0AGkAYwAgAGUAeAB0AGUAcgBuACAASQBuAHQAUAB0AHIAIABDAGEAbABsAE4AZQB4AHQASABvAG8AawBFAHgAKABJAG4AdABQAHQAcgAgAGgAaABrACwAIABpAG4AdAAgAG4AQwBvAGQAZQAsACAASQBuAHQAUAB0AHIAIAB3AFAAYQByAGEAbQAsACAASQBuAHQAUAB0AHIAIABsAFAAYQByAGEAbQApADsACgAgACAAIAAgAFsARABsAGwASQBtAHAAbwByAHQAKAAiAGsAZQByAG4AZQBsADMAMgAuAGQAbABsACIAKQBdACAAcAByAGkAdgBhAHQAZQAgAHMAdABhAHQAaQBjACAAZQB4AHQAZQByAG4AIABJAG4AdABQAHQAcgAgAEcAZQB0AE0AbwBkAHUAbABlAEgAYQBuAGQAbABlACgAcwB0AHIAaQBuAGcAIABsAHAATQBvAGQAdQBsAGUATgBhAG0AZQApADsACgAgACAAIAAgAFsARABsAGwASQBtAHAAbwByAHQAKAAiAHUAcwBlAHIAMwAyAC4AZABsAGwAIgApAF0AIABwAHIAaQB2AGEAdABlACAAcwB0AGEAdABpAGMAIABlAHgAdABlAHIAbgAgAHMAaABvAHIAdAAgAEcAZQB0AEsAZQB5AFMAdABhAHQAZQAoAGkAbgB0ACAAdgBLAGUAeQApADsACgB9AAoAIgBAACAALQBSAGUAZgBlAHIAZQBuAGMAZQBkAEEAcwBzAGUAbQBiAGwAaQBlAHMAIABTAHkAcwB0AGUAbQAuAFcAaQBuAGQAbwB3AHMALgBGAG8AcgBtAHMACgAKAFsASwBlAHkATABvAGMAawBdADoAOgBTAHQAYQByAHQAKAApAAoA
 
-if exist "!EXE_FILE!" (
-    start "" "!EXE_FILE!" "%TARGET_URL%"
-    exit /b 0
-)
-
-REM 1. Localiza o Compilador C# Embutido do Windows (Pre-instalado em 100% dos PCs Windows)
-set "CSC="
-if exist "%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" set "CSC=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-if not defined CSC if exist "%SystemRoot%\Microsoft.NET\Framework\v4.0.30319\csc.exe" set "CSC=%SystemRoot%\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-
-set "CS_SRC=%TEMP%\SafeExam_Src.cs"
-(
-echo using System;
-echo using System.Diagnostics;
-echo using System.IO;
-echo using System.Runtime.InteropServices;
-echo using System.Windows.Forms;
-echo class SafeExamApp {
-echo     private const int WH_KEYBOARD_LL = 13;
-echo     private static IntPtr _hookID = IntPtr.Zero;
-echo     private static LowLevelKeyboardProc _proc = HookCallback;
-echo     private static Process _browserProcess = null;
-echo     [STAThread]
-echo     static void Main^(string[] args^) {
-echo         string targetUrl = ^(args != null ^&^& args.Length ^> 0 ^&^& !string.IsNullOrEmpty^(args[0]^)^) ? args[0] : "https://adaptativo-sesi.educat.net.br";
-echo         _hookID = SetHook^(_proc^);
-echo         LaunchBrowser^(targetUrl^);
-echo         Application.Run^(^);
-echo         if ^(_hookID != IntPtr.Zero^) { UnhookWindowsHookEx^(_hookID^); _hookID = IntPtr.Zero; }
-echo     }
-echo     private static void LaunchBrowser^(string url^) {
-echo         try {
-echo             string browser = null;
-echo             string progX86 = Environment.GetEnvironmentVariable^("ProgramFiles(x86)"^);
-echo             string prog = Environment.GetEnvironmentVariable^("ProgramFiles"^);
-echo             string localApp = Environment.GetFolderPath^(Environment.SpecialFolder.LocalApplicationData^);
-echo             string[] paths = new string[] {
-echo                 Path.Combine^(progX86 ?? "", @"Microsoft\Edge\Application\msedge.exe"^),
-echo                 Path.Combine^(prog ?? "", @"Microsoft\Edge\Application\msedge.exe"^),
-echo                 Path.Combine^(localApp ?? "", @"Microsoft\Edge\Application\msedge.exe"^),
-echo                 Path.Combine^(prog ?? "", @"Google\Chrome\Application\chrome.exe"^),
-echo                 Path.Combine^(progX86 ?? "", @"Google\Chrome\Application\chrome.exe"^),
-echo                 Path.Combine^(localApp ?? "", @"Google\Chrome\Application\chrome.exe"^)
-echo             };
-echo             foreach ^(string p in paths^) {
-echo                 if ^(!string.IsNullOrEmpty^(p^) ^&^& File.Exists^(p^)^) { browser = p; break; }
-echo             }
-echo             string profile = Path.Combine^(Path.GetTempPath^(^), "SafeExam_Kiosk_" + Guid.NewGuid^(^).ToString^("N"^)^);
-echo             string kioskArgs = string.Format^("--kiosk \"{0}\" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir=\"{1}\" --app=\"{0}\"", url, profile^);
-echo             ProcessStartInfo psi;
-echo             if ^(!string.IsNullOrEmpty^(browser^)^) { psi = new ProcessStartInfo^(browser, kioskArgs^); }
-echo             else { psi = new ProcessStartInfo^("cmd.exe", "/c start \"\" msedge.exe " + kioskArgs^); psi.CreateNoWindow = true; psi.UseShellExecute = false; }
-echo             _browserProcess = Process.Start^(psi^);
-echo             if ^(_browserProcess != null^) {
-echo                 _browserProcess.EnableRaisingEvents = true;
-echo                 _browserProcess.Exited += ^(s, e^) =^> {
-echo                     if ^(_hookID != IntPtr.Zero^) { UnhookWindowsHookEx^(_hookID^); _hookID = IntPtr.Zero; }
-echo                     Application.Exit^(^);
-echo                 };
-echo             }
-echo         } catch { }
-echo     }
-echo     private static IntPtr SetHook^(LowLevelKeyboardProc proc^) {
-echo         using ^(Process curProcess = Process.GetCurrentProcess^(^)^)
-echo         using ^(ProcessModule curModule = curProcess.MainModule^) {
-echo             return SetWindowsHookEx^(WH_KEYBOARD_LL, proc, GetModuleHandle^(curModule.ModuleName^), 0^);
-echo         }
-echo     }
-echo     private delegate IntPtr LowLevelKeyboardProc^(int nCode, IntPtr wParam, IntPtr lParam^);
-echo     private static IntPtr HookCallback^(int nCode, IntPtr wParam, IntPtr lParam^) {
-echo         if ^(nCode ^>= 0^) {
-echo             int vkCode = Marshal.ReadInt32^(lParam^);
-echo             int flags = Marshal.ReadInt32^(lParam, 8^);
-echo             bool alt = ^(flags ^& 0x20^) != 0 ^|^| ^(GetAsyncKeyState^(0x12^) ^& 0x8000^) != 0;
-echo             bool ctrl = ^(GetAsyncKeyState^(0x11^) ^& 0x8000^) != 0;
-echo             bool shift = ^(GetAsyncKeyState^(0x10^) ^& 0x8000^) != 0;
-echo             if ^(ctrl ^&^& alt ^&^& shift ^&^& vkCode == 0x7B^) {
-echo                 if ^(_hookID != IntPtr.Zero^) { UnhookWindowsHookEx^(_hookID^); _hookID = IntPtr.Zero; }
-echo                 Application.Exit^(^);
-echo                 return ^(IntPtr^)1;
-echo             }
-echo             if ^(ctrl ^&^& shift ^&^& vkCode == 0x1B^) return ^(IntPtr^)1;
-echo             if ^(vkCode == 0x5B ^|^| vkCode == 0x5C^) return ^(IntPtr^)1;
-echo             if ^(alt ^&^& vkCode == 0x09^) return ^(IntPtr^)1;
-echo             if ^(alt ^&^& vkCode == 0x1B^) return ^(IntPtr^)1;
-echo             if ^(alt ^&^& vkCode == 0x20^) return ^(IntPtr^)1;
-echo             if ^(alt ^&^& vkCode == 0x73^) return ^(IntPtr^)1;
-echo             if ^(ctrl ^&^& vkCode == 0x1B^) return ^(IntPtr^)1;
-echo             if ^(vkCode == 0x2C^) return ^(IntPtr^)1;
-echo             if ^(vkCode ^>= 0x70 ^&^& vkCode ^<= 0x7B^) return ^(IntPtr^)1;
-echo         }
-echo         return CallNextHookEx^(_hookID, nCode, wParam, lParam^);
-echo     }
-echo     [DllImport^("user32.dll"^)] private static extern IntPtr SetWindowsHookEx^(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId^);
-echo     [DllImport^("user32.dll"^)] private static extern bool UnhookWindowsHookEx^(IntPtr hhk^);
-echo     [DllImport^("user32.dll"^)] private static extern IntPtr CallNextHookEx^(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam^);
-echo     [DllImport^("kernel32.dll"^)] private static extern IntPtr GetModuleHandle^(string lpModuleName^);
-echo     [DllImport^("user32.dll"^)] private static extern short GetAsyncKeyState^(int vKey^);
-echo }
-) > "%CS_SRC%"
-
-if defined CSC (
-    "%CSC%" /nologo /target:winexe /out:"!EXE_FILE!" /r:System.Windows.Forms.dll,System.Drawing.dll "%CS_SRC%" >nul 2>&1
-    del /f /q "%CS_SRC%" >nul 2>&1
-)
-
-if exist "!EXE_FILE!" (
-    start "" "!EXE_FILE!" "%TARGET_URL%"
-    exit /b 0
-)
-
-REM Fallback Direto caso csc nao esteja no PATH
+REM =======================================================
+REM 2. Localiza Microsoft Edge ou Chrome e Abre em Tela Cheia Kiosk
+REM =======================================================
 set "BROWSER="
 if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
 if not defined BROWSER if exist "%ProgramFiles%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
 if not defined BROWSER if exist "%LocalAppData%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%LocalAppData%\Microsoft\Edge\Application\msedge.exe"
+if not defined BROWSER if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "BROWSER=%LocalAppData%\Google\Chrome\Application\chrome.exe"
+
+set "PROFILE=%TEMP%\SafeExam_Session_%RANDOM%"
 
 if defined BROWSER (
-    start "" /max "!BROWSER!" --kiosk "%TARGET_URL%" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --app="%TARGET_URL%"
+    start "" /max "!BROWSER!" --kiosk "%TARGET_URL%" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir="%PROFILE%" --app="%TARGET_URL%"
 ) else (
-    start "" /max msedge.exe --kiosk "%TARGET_URL%" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --app="%TARGET_URL%"
+    start "" /max msedge.exe --kiosk "%TARGET_URL%" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir="%PROFILE%" --app="%TARGET_URL%"
 )
 
 exit /b 0
