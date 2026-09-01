@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
@@ -51,38 +52,38 @@ namespace SafeExamBlocker
         private static Mutex _singleInstanceMutex = null;
         private static HttpListener _httpListener = null;
         private static bool _isRunning = true;
+        private static Process _kioskBrowserProcess = null;
+        private static WebSocket _activeWebSocket = null;
+        private static string _tempProfileDir = null;
 
         [STAThread]
         static void Main(string[] args)
         {
-            Console.Title = "SafeExam Blocker — Monitor de Segurança Local";
+            Console.Title = "SafeExam Secure Browser — SESI Escola";
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("==================================================");
-            Console.WriteLine("   SafeExam Online — Bloqueador de Teclado Local   ");
-            Console.WriteLine("==================================================");
+            Console.WriteLine("==========================================================");
+            Console.WriteLine("   SafeExam Secure Browser — Ambiente Seguro de Prova     ");
+            Console.WriteLine("==========================================================");
             Console.ResetColor();
 
-            // 1. Garantir que apenas UMA instância do executável seja executada por vez
+            // 1. Instância Única
             bool createdNew;
             _singleInstanceMutex = new Mutex(true, "SafeExamBlocker_SingleInstance_Mutex", out createdNew);
             if (!createdNew)
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine("\n[AVISO] O SafeExam Blocker já está em execução neste computador.");
+                Console.WriteLine("\n[AVISO] O SafeExam já está em execução neste computador.");
                 Console.WriteLine("Pressione qualquer tecla para fechar esta janela...");
                 Console.ResetColor();
                 Console.ReadKey();
                 return;
             }
 
-            // Registrar manipuladores de encerramento para garantir remoção do hook
+            // Tratamento de encerramento do processo
             AppDomain.CurrentDomain.ProcessExit += (s, e) => CleanUp();
             Console.CancelKeyPress += (s, e) => { CleanUp(); };
 
-            // 2. Iniciar Servidor WebSocket em Background
-            Task.Run(() => StartWebSocketServer());
-
-            // 3. Instalar o Hook de Teclado de Baixo Nível
+            // 2. Instalar o Hook de Teclado
             _hookID = SetHook(_proc);
             if (_hookID == IntPtr.Zero)
             {
@@ -93,17 +94,18 @@ namespace SafeExamBlocker
             }
 
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("\n[ATIVO] Bloqueio de atalhos e teclas de sistema ativado com sucesso!");
+            Console.WriteLine("\n[STATUS] Blindagem de teclado ativada com sucesso.");
             Console.ResetColor();
-            Console.WriteLine("\nInstruções:");
-            Console.WriteLine(" • Mantenha esta janela aberta durante toda a avaliação.");
-            Console.WriteLine(" • Ao finalizar a prova, feche esta janela normalmente.");
+            Console.WriteLine(" • Bloqueio de Alt+Tab, Windows, Ctrl+Shift+Esc, PrintScreen ativo.");
             Console.WriteLine(" • Atalho de Emergência do Professor: [Ctrl + Alt + Shift + F12]\n");
 
-            // 4. Iniciar o Loop de Mensagens do Windows (Obrigatório para o Hook e Forms)
+            // 3. Iniciar Servidor WebSocket em Background
+            Task.Run(() => StartWebSocketServer());
+
+            // 4. Iniciar Loop de Mensagens do Windows
             Application.Run();
 
-            // Ao sair do loop, limpa os recursos
+            // Limpeza ao sair
             CleanUp();
         }
 
@@ -125,7 +127,6 @@ namespace SafeExamBlocker
                 KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
                 uint vkCode = hookStruct.vkCode;
 
-                // Verificação precisa do estado das teclas modificadoras via API nativa
                 bool isAltPressed = (hookStruct.flags & LLKHF_ALTDOWN) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
                 bool isCtrlPressed = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
                 bool isShiftPressed = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
@@ -139,36 +140,37 @@ namespace SafeExamBlocker
                     Console.ResetColor();
                     Task.Run(() => {
                         Thread.Sleep(300);
+                        CleanUp();
                         Application.Exit();
                     });
                     return (IntPtr)1;
                 }
 
-                // 2. BLOQUEIO DE GERENCIADOR DE TAREFAS: Ctrl + Shift + Esc
+                // 2. BLOQUEIO DO GERENCIADOR DE TAREFAS: Ctrl + Shift + Esc
                 if (isCtrlPressed && isShiftPressed && vkCode == VK_ESCAPE)
                 {
                     return (IntPtr)1;
                 }
 
-                // 3. BLOQUEIO DE TECLAS WINDOWS (Menu Iniciar / Combinações Win)
+                // 3. BLOQUEIO DE TECLAS WINDOWS
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                 {
                     return (IntPtr)1;
                 }
 
-                // 4. BLOQUEIO DE FERRAMENTA DE CAPTURA DO WINDOWS: Win + Shift + S
+                // 4. BLOQUEIO DE CAPTURA DO WINDOWS: Win + Shift + S
                 if (isWinPressed && isShiftPressed && vkCode == VK_S)
                 {
                     return (IntPtr)1;
                 }
 
-                // 5. BLOQUEIO DE ALTERNÂNCIA DE JANELAS E MENUS DO SISTEMA (Alt + ...)
+                // 5. BLOQUEIO DE COMBINAÇÕES COM ALT
                 if (isAltPressed)
                 {
                     if (vkCode == VK_TAB) return (IntPtr)1;       // Alt + Tab
                     if (vkCode == VK_ESCAPE) return (IntPtr)1;    // Alt + Esc
                     if (vkCode == VK_F4) return (IntPtr)1;        // Alt + F4
-                    if (vkCode == VK_SPACE) return (IntPtr)1;     // Alt + Space (Menu Janela)
+                    if (vkCode == VK_SPACE) return (IntPtr)1;     // Alt + Space
                 }
 
                 // 6. BLOQUEIO DE MENU INICIAR ALTERNATIVO: Ctrl + Esc
@@ -177,13 +179,13 @@ namespace SafeExamBlocker
                     return (IntPtr)1;
                 }
 
-                // 7. BLOQUEIO DE CAPTURA DE TELA (Print Screen / Snapshot)
+                // 7. BLOQUEIO DE PRINT SCREEN
                 if (vkCode == VK_SNAPSHOT)
                 {
                     return (IntPtr)1;
                 }
 
-                // 8. BLOQUEIO DE F11 (Manipulação de Tela Cheia do Navegador)
+                // 8. BLOQUEIO DE F11 (Manipulação de Tela Cheia)
                 if (vkCode == VK_F11)
                 {
                     return (IntPtr)1;
@@ -202,14 +204,13 @@ namespace SafeExamBlocker
             {
                 _httpListener.Start();
                 Console.ForegroundColor = ConsoleColor.DarkCyan;
-                Console.WriteLine("[WEBSOCKET] Servidor de integração aguardando conexão do navegador na porta 8765...");
+                Console.WriteLine("[WEBSOCKET] Servidor de integração aguardando o navegador na porta 8765...");
                 Console.ResetColor();
             }
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("[ERRO WEBSOCKET] Não foi possível iniciar o servidor na porta 8765: " + ex.Message);
-                Console.WriteLine("Verifique se outro programa ou instância já está usando a porta.");
+                Console.WriteLine("[ERRO WEBSOCKET] Erro ao iniciar servidor na porta 8765: " + ex.Message);
                 Console.ResetColor();
                 return;
             }
@@ -229,14 +230,13 @@ namespace SafeExamBlocker
                 }
                 catch (HttpListenerException)
                 {
-                    // Listener encerrado
                     break;
                 }
                 catch (Exception ex)
                 {
                     if (_isRunning)
                     {
-                        Console.WriteLine("[AVISO] Erro na conexão: " + ex.Message);
+                        Console.WriteLine("[AVISO] " + ex.Message);
                     }
                 }
             }
@@ -251,48 +251,194 @@ namespace SafeExamBlocker
             }
             catch (Exception)
             {
-                try
-                {
-                    context.Response.StatusCode = 500;
-                    context.Response.Close();
-                }
-                catch { }
+                try { context.Response.StatusCode = 500; context.Response.Close(); } catch { }
                 return;
             }
 
             WebSocket webSocket = webSocketContext.WebSocket;
+            _activeWebSocket = webSocket;
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("[CONECTADO] Navegador da prova conectado com sucesso!");
+            Console.WriteLine("[CONECTADO] Site da prova conectado ao SafeExam Blocker!");
             Console.ResetColor();
 
-            try
+            // Task para enviar pings a cada 2 segundos
+            _ = Task.Run(async () =>
             {
-                byte[] buffer = Encoding.UTF8.GetBytes("alive");
+                byte[] pingBytes = Encoding.UTF8.GetBytes("{\"status\":\"alive\"}");
                 while (webSocket.State == WebSocketState.Open && _isRunning)
                 {
-                    await webSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
-                    await Task.Delay(2000);
+                    try
+                    {
+                        await webSocket.SendAsync(new ArraySegment<byte>(pingBytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                        await Task.Delay(2000);
+                    }
+                    catch { break; }
+                }
+            });
+
+            // Loop de recepção de comandos do site
+            byte[] receiveBuffer = new byte[4096];
+            try
+            {
+                while (webSocket.State == WebSocketState.Open && _isRunning)
+                {
+                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(receiveBuffer), CancellationToken.None);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        break;
+                    }
+                    else if (result.MessageType == WebSocketMessageType.Text)
+                    {
+                        string message = Encoding.UTF8.GetString(receiveBuffer, 0, result.Count);
+                        HandleClientMessage(message);
+                    }
                 }
             }
-            catch (Exception)
-            {
-                // Conexão encerrada pelo cliente ou erro de rede local
-            }
+            catch (Exception) { }
             finally
             {
-                if (webSocket != null)
-                {
-                    try { webSocket.Dispose(); } catch { }
-                }
+                if (_activeWebSocket == webSocket) _activeWebSocket = null;
+                try { webSocket.Dispose(); } catch { }
                 Console.ForegroundColor = ConsoleColor.DarkYellow;
-                Console.WriteLine("[DESCONECTADO] Navegador da prova desconectado.");
+                Console.WriteLine("[DESCONECTADO] Site desconectado.");
                 Console.ResetColor();
+            }
+        }
+
+        private static void HandleClientMessage(string message)
+        {
+            try
+            {
+                if (message.Contains("\"action\":\"launch_kiosk\"") || message.Contains("\"action\": \"launch_kiosk\""))
+                {
+                    // Extrai a URL
+                    string url = ExtractJsonValue(message, "url");
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                        Console.WriteLine($"\n[LANÇANDO NAVEGADOR SEGURO] Abrindo avaliação: {url}");
+                        Console.ResetColor();
+                        LaunchKioskBrowser(url);
+                    }
+                }
+                else if (message.Contains("\"action\":\"close_kiosk\""))
+                {
+                    CloseKioskBrowser();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[ERRO COMANDO] " + ex.Message);
+            }
+        }
+
+        private static string ExtractJsonValue(string json, string key)
+        {
+            int keyIdx = json.IndexOf($"\"{key}\"");
+            if (keyIdx == -1) return null;
+            int colonIdx = json.IndexOf(":", keyIdx);
+            if (colonIdx == -1) return null;
+            int startQuote = json.IndexOf("\"", colonIdx);
+            if (startQuote == -1) return null;
+            int endQuote = json.IndexOf("\"", startQuote + 1);
+            if (endQuote == -1) return null;
+            return json.Substring(startQuote + 1, endQuote - startQuote - 1);
+        }
+
+        private static void LaunchKioskBrowser(string url)
+        {
+            try
+            {
+                CloseKioskBrowser();
+
+                _tempProfileDir = Path.Combine(Path.GetTempPath(), "SafeExam_Profile_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(_tempProfileDir);
+
+                // Localiza o executável do Microsoft Edge ou Google Chrome no Windows
+                string edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Microsoft\Edge\Application\msedge.exe");
+                if (!File.Exists(edgePath))
+                {
+                    edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Microsoft\Edge\Application\msedge.exe");
+                }
+                if (!File.Exists(edgePath))
+                {
+                    edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
+                }
+                if (!File.Exists(edgePath))
+                {
+                    edgePath = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
+                }
+
+                // Argumentos do Chromium Kiosk Mode: Top-level Window com tela cheia
+                string args = $"--kiosk \"{url}\" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir=\"{_tempProfileDir}\" --app=\"{url}\"";
+
+                ProcessStartInfo psi = new ProcessStartInfo
+                {
+                    FileName = File.Exists(edgePath) ? edgePath : "msedge.exe",
+                    Arguments = args,
+                    UseShellExecute = false
+                };
+
+                _kioskBrowserProcess = Process.Start(psi);
+                if (_kioskBrowserProcess != null)
+                {
+                    _kioskBrowserProcess.EnableRaisingEvents = true;
+                    _kioskBrowserProcess.Exited += (s, e) =>
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("[AVISO] O aluno fechou a janela da avaliação.");
+                        Console.ResetColor();
+                        NotifyWebSocket("{\"event\":\"kiosk_closed\"}");
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("[ERRO AO ABRIR BROWSER] " + ex.Message);
+                Console.ResetColor();
+            }
+        }
+
+        private static void CloseKioskBrowser()
+        {
+            if (_kioskBrowserProcess != null)
+            {
+                try
+                {
+                    if (!_kioskBrowserProcess.HasExited)
+                    {
+                        _kioskBrowserProcess.Kill();
+                    }
+                }
+                catch { }
+                _kioskBrowserProcess = null;
+            }
+
+            if (!string.IsNullOrEmpty(_tempProfileDir) && Directory.Exists(_tempProfileDir))
+            {
+                try { Directory.Delete(_tempProfileDir, true); } catch { }
+                _tempProfileDir = null;
+            }
+        }
+
+        private static async void NotifyWebSocket(string message)
+        {
+            if (_activeWebSocket != null && _activeWebSocket.State == WebSocketState.Open)
+            {
+                try
+                {
+                    byte[] bytes = Encoding.UTF8.GetBytes(message);
+                    await _activeWebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                }
+                catch { }
             }
         }
 
         private static void CleanUp()
         {
             _isRunning = false;
+            CloseKioskBrowser();
 
             if (_hookID != IntPtr.Zero)
             {
