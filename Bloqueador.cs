@@ -102,7 +102,23 @@ namespace SafeExamBlocker
             // 3. Iniciar Servidor WebSocket em Background
             Task.Run(() => StartWebSocketServer());
 
-            // 4. Iniciar Loop de Mensagens do Windows
+            // 4. Iniciar o Navegador Seguro Kiosk Imediatamente na Inicialização
+            string targetUrl = "https://adaptativo-sesi.educat.net.br";
+            if (args != null && args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
+            {
+                targetUrl = args[0];
+            }
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"[NAVEGADOR SEGURO] Abrindo Educat SESI em Tela Cheia Nativa...");
+            Console.ResetColor();
+
+            Task.Run(() => {
+                Thread.Sleep(500);
+                LaunchKioskBrowser(targetUrl);
+            });
+
+            // 5. Iniciar Loop de Mensagens do Windows
             Application.Run();
 
             // Limpeza ao sair
@@ -366,10 +382,22 @@ namespace SafeExamBlocker
                 }
                 if (!File.Exists(edgePath))
                 {
+                    edgePath = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
+                }
+                if (!File.Exists(edgePath))
+                {
+                    edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\Edge\Application\msedge.exe");
+                }
+                if (!File.Exists(edgePath))
+                {
                     edgePath = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
                 }
+                if (!File.Exists(edgePath))
+                {
+                    edgePath = @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe";
+                }
 
-                // Argumentos do Chromium Kiosk Mode: Top-level Window com tela cheia
+                // Argumentos do Chromium Kiosk Mode: Top-level Window com tela cheia real sem barras
                 string args = $"--kiosk \"{url}\" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir=\"{_tempProfileDir}\" --app=\"{url}\"";
 
                 ProcessStartInfo psi = new ProcessStartInfo
@@ -386,9 +414,15 @@ namespace SafeExamBlocker
                     _kioskBrowserProcess.Exited += (s, e) =>
                     {
                         Console.ForegroundColor = ConsoleColor.Yellow;
-                        Console.WriteLine("[AVISO] O aluno fechou a janela da avaliação.");
+                        Console.WriteLine("\n[AVISO] A janela da avaliação foi fechada.");
                         Console.ResetColor();
                         NotifyWebSocket("{\"event\":\"kiosk_closed\"}");
+                        
+                        Task.Run(() => {
+                            Thread.Sleep(500);
+                            CleanUp();
+                            Application.Exit();
+                        });
                     };
                 }
             }
