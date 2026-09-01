@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebas
 import { getDatabase, ref, set, onValue, update, remove, serverTimestamp, push, get, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
 // =========================================================
-// ⚠️ COLE AQUI AS CHAVES DO SEU PROJETO FIREBASE ⚠️
+// ⚠️ CONFIGURAÇÃO DO FIREBASE ⚠️
 // =========================================================
 const firebaseConfig = {
     apiKey: "AIzaSyAsqcLzCS-ni-H13LPq4u_UyahuEVzszw8",
@@ -20,7 +20,30 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 // =========================================
-// GLOBAL ADMIN SETTINGS
+// UTILITÁRIOS DE CRIPTOGRAFIA (SHA-256)
+// =========================================
+async function sha256(message) {
+    if (!message) return '';
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function sanitizeExamUrl(rawUrl) {
+    let url = (rawUrl || '').trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+    // Formatação automática para formulários do Google (modo embed)
+    if (url.includes('docs.google.com/forms') && !url.includes('embedded=true')) {
+        url += (url.includes('?') ? '&' : '?') + 'embedded=true';
+    }
+    return url;
+}
+
+// =========================================
+// CONFIGURAÇÕES GLOBAIS (ADMIN)
 // =========================================
 let globalSettings = {
     requireBlocker: true,
@@ -41,14 +64,14 @@ onValue(ref(db, 'admin_settings'), (snap) => {
 });
 
 // =========================================
-// STATE
+// ESTADO DA APLICAÇÃO
 // =========================================
 const state = {
     sessionId: '',
     studentId: '',
     studentName: '',
     examUrl: '',
-    localPassword: '', // Para desbloqueio offline
+    localPasswordHash: '', // Hash SHA-256 da senha da sala (seguro contra inspeção de URL)
     isSecureMode: false,
     isFullscreen: false,
     isBlocked: false,
@@ -58,7 +81,7 @@ const state = {
 };
 
 // =========================================
-// DOM REFERENCES
+// REFERÊNCIAS AO DOM
 // =========================================
 const $ = (sel) => document.querySelector(sel);
 const screens = {
@@ -95,18 +118,21 @@ const infractionLog = $('#infraction-log');
 const overlayFullscreen = $('#overlay-fullscreen');
 
 // =========================================
-// ROTEAMENTO SIMPLES
+// ROTEAMENTO
 // =========================================
 function showScreen(screenKey) {
     Object.values(screens).forEach((s) => s.classList.remove('active'));
-    screens[screenKey].classList.add('active');
+    if (screens[screenKey]) {
+        screens[screenKey].classList.add('active');
+    }
 }
 
 function checkAdminHash() {
     const hash = window.location.hash;
     if (hash === '#admin') {
         document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
-        document.getElementById('screen-admin-login').classList.add('active');
+        const adminLoginScreen = document.getElementById('screen-admin-login');
+        if (adminLoginScreen) adminLoginScreen.classList.add('active');
         return true;
     }
     return false;
@@ -121,16 +147,20 @@ function handleRoute() {
     if (window.location.hash === '#aplicador') {
         showScreen('dashLogin');
     } else if (mode === 'exam') {
-        state.sessionId = params.get('session');
-        state.examUrl = atob(params.get('url'));
-        state.localPassword = params.get('key') ? atob(params.get('key')) : '';
+        state.sessionId = (params.get('session') || '').toUpperCase();
+        try {
+            state.examUrl = params.get('url') ? atob(params.get('url')) : '';
+        } catch (e) {
+            state.examUrl = '';
+        }
         
         if (!state.sessionId || !state.examUrl) {
-            alert('Link inválido!');
+            alert('Link de prova inválido ou incompleto!');
+            showScreen('setup');
             return;
         }
 
-        // Verifica Windows para exigir bloqueador
+        // Detecta Windows para sugerir/exigir bloqueador nativo
         state.isWindows = navigator.userAgent.toLowerCase().indexOf('windows') !== -1;
         if (state.isWindows && globalSettings.requireBlocker) {
             nativeBlockerArea.style.display = 'block';
@@ -151,9 +181,9 @@ window.addEventListener('hashchange', handleRoute);
 handleRoute();
 
 // =========================================
-// TELA: ADMIN LOGIN E DASHBOARD
+// TELA: ADMIN LOGIN E DASHBOARD MASTER
 // =========================================
-document.getElementById('form-admin-login').addEventListener('submit', (e) => {
+document.getElementById('form-admin-login')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const pwd = document.getElementById('input-admin-password').value;
     
@@ -168,22 +198,28 @@ document.getElementById('form-admin-login').addEventListener('submit', (e) => {
 
 function initAdminDashboard() {
     const toggle = document.getElementById('toggle-require-blocker');
-    toggle.checked = globalSettings.requireBlocker;
-    toggle.onchange = () => {
-        update(ref(db, 'admin_settings'), { requireBlocker: toggle.checked });
-    };
+    if (toggle) {
+        toggle.checked = globalSettings.requireBlocker;
+        toggle.onchange = () => {
+            update(ref(db, 'admin_settings'), { requireBlocker: toggle.checked });
+        };
+    }
 
-    document.getElementById('btn-save-master-pwd').onclick = async () => {
-        const newPwd = document.getElementById('input-new-master-pwd').value;
-        if (newPwd.length < 4) return alert("Senha muito curta.");
-        await update(ref(db, 'admin_settings'), { masterPassword: newPwd });
-        alert("Senha Master alterada com sucesso!");
-        document.getElementById('input-new-master-pwd').value = '';
-    };
+    const btnSavePwd = document.getElementById('btn-save-master-pwd');
+    if (btnSavePwd) {
+        btnSavePwd.onclick = async () => {
+            const newPwd = document.getElementById('input-new-master-pwd').value;
+            if (newPwd.length < 4) return alert("Senha muito curta. Use pelo menos 4 caracteres.");
+            await update(ref(db, 'admin_settings'), { masterPassword: newPwd });
+            alert("Senha Master alterada com sucesso!");
+            document.getElementById('input-new-master-pwd').value = '';
+        };
+    }
 
     onValue(ref(db, 'safeexam_sessions'), (snap) => {
         const sessions = snap.val() || {};
         const listEl = document.getElementById('admin-sessions-list');
+        if (!listEl) return;
         listEl.innerHTML = '';
         
         let hasActive = false;
@@ -219,7 +255,7 @@ function initAdminDashboard() {
 }
 
 window.killSessionAdmin = async function(sessionId) {
-    if (confirm("Deseja DESTRUIR essa sala? Todos os alunos serão expulsos.")) {
+    if (confirm("Deseja DESTRUIR essa sala? Todos os alunos serão desconectados.")) {
         await update(ref(db, `safeexam_sessions/${sessionId}`), { status: 'finished' });
     }
 };
@@ -240,7 +276,8 @@ window.editSessionPassword = async function(sessionId) {
 formSetup.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const url = $('#input-exam-url').value.trim();
+    let rawUrl = $('#input-exam-url').value.trim();
+    const url = sanitizeExamUrl(rawUrl);
     const pwd = $('#input-password').value;
     const roomName = $('#input-room-name').value.trim() || 'Sem nome';
     
@@ -259,7 +296,8 @@ formSetup.addEventListener('submit', async (e) => {
             createdAt: serverTimestamp(),
             examUrl: url,
             roomName: roomName,
-            localPassword: pwd
+            localPassword: pwd,
+            status: 'active'
         });
 
         const timeoutPromise = new Promise((_, reject) => 
@@ -268,16 +306,15 @@ formSetup.addEventListener('submit', async (e) => {
 
         await Promise.race([createDocPromise, timeoutPromise]);
         
-        // Gera links
+        // Gera links seguros (NÃO inclui a senha em base64 na URL)
         const b64url = btoa(url);
-        const b64pwd = btoa(pwd);
-        const studentLink = `${window.location.origin}${window.location.pathname}?mode=exam&session=${sessionId}&url=${b64url}&key=${b64pwd}`;
+        const studentLink = `${window.location.origin}${window.location.pathname}?mode=exam&session=${sessionId}&url=${b64url}`;
         const dashLink = `${window.location.origin}${window.location.pathname}#aplicador`;
 
         $('#generated-link-input').value = studentLink;
         $('#generated-dash-input').value = dashLink;
         
-        // Salva a senha localmente pro caso dele mesmo abrir o painel
+        // Salva a sessão localmente
         localStorage.setItem('last_dash_session', sessionId);
         
         generatedLinkArea.classList.remove('hidden');
@@ -286,9 +323,9 @@ formSetup.addEventListener('submit', async (e) => {
         
     } catch (error) {
         if (error.message === "TIMEOUT") {
-            alert("O Firebase demorou muito para responder. Verifique sua conexão ou regras do Realtime Database.");
+            alert("O Firebase demorou muito para responder. Verifique sua conexão à internet.");
         } else {
-            alert("Erro ao criar sala. Verifique o console ou as regras de segurança do Firebase.");
+            alert("Erro ao criar sala. Verifique sua conexão ou configurações do Firebase.");
         }
         console.error("Erro Firebase:", error);
         btn.disabled = false;
@@ -296,15 +333,22 @@ formSetup.addEventListener('submit', async (e) => {
     }
 });
 
-$('#btn-copy-link').onclick = () => navigator.clipboard.writeText($('#generated-link-input').value);
-$('#btn-copy-dash').onclick = () => navigator.clipboard.writeText($('#generated-dash-input').value);
+$('#btn-copy-link').onclick = () => {
+    navigator.clipboard.writeText($('#generated-link-input').value);
+    alert("Link do aluno copiado para a área de transferência!");
+};
+
+$('#btn-copy-dash').onclick = () => {
+    navigator.clipboard.writeText($('#generated-dash-input').value);
+    alert("Link do painel copiado!");
+};
 
 $('#btn-open-dash').onclick = () => {
     window.location.hash = '#aplicador';
 };
 
 // =========================================
-// TELA: LOGIN DO PAINEL
+// TELA: LOGIN DO PAINEL DO APLICADOR
 // =========================================
 formDashLogin.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -334,8 +378,13 @@ function openDashboard(sessionId) {
         let blockedCount = 0;
         
         const students = snapshot.val() || {};
+        const studentKeys = Object.keys(students);
 
-        Object.keys(students).forEach((studentId) => {
+        if (studentKeys.length === 0) {
+            studentsGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">Nenhum aluno conectado ainda. Compartilhe o link da prova.</div>';
+        }
+
+        studentKeys.forEach((studentId) => {
             const student = students[studentId];
             
             if (student.status === 'active') activeCount++;
@@ -377,7 +426,7 @@ function openDashboard(sessionId) {
 
     // Botão de Encerrar Sala
     $('#btn-finish-exam').onclick = async () => {
-        if (confirm("Deseja realmente encerrar a prova? Todos os alunos serão expulsos imediatamente e não poderão voltar.")) {
+        if (confirm("Deseja realmente encerrar a prova? Todos os alunos serão desconectados imediatamente.")) {
             const sessionRef = ref(db, `safeexam_sessions/${state.sessionId}`);
             try {
                 await update(sessionRef, { status: 'finished' });
@@ -389,13 +438,6 @@ function openDashboard(sessionId) {
             }
         }
     };
-
-    // Auto-refresh: força releitura a cada 15s para manter o painel atualizado
-    setInterval(() => {
-        get(studentsRef).then((snap) => {
-            // O onValue já atualiza, mas esse get garante um "empurrão" extra
-        }).catch(() => {});
-    }, 15000);
 }
 
 // Função global para o botão remoto
@@ -412,7 +454,7 @@ window.unlockStudentRemote = async function(studentId) {
 
 // Função global para remover aluno
 window.removeStudentRemote = async function(studentId) {
-    if (!confirm("Tem certeza que deseja remover este aluno da sala? Ele será desconectado e o trabalho pode ser perdido.")) return;
+    if (!confirm("Tem certeza que deseja remover este aluno da sala?")) return;
     
     try {
         const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${studentId}`);
@@ -423,38 +465,64 @@ window.removeStudentRemote = async function(studentId) {
 };
 
 // =========================================
-// TELA DO ALUNO
+// TELA DO ALUNO (ENTRADA NA PROVA)
 // =========================================
 btnStartExam.addEventListener('click', async () => {
     state.studentName = inputStudentName.value.trim();
     if (!state.studentName) {
-        alert("Digite seu nome!");
+        alert("Digite seu nome completo!");
         return;
     }
     
-    btnStartExam.textContent = "Conectando...";
+    btnStartExam.textContent = "Conectando à Sala...";
     btnStartExam.disabled = true;
 
-    // Registra o aluno no Firebase
     try {
-        // Verifica primeiro se já existe alguém com esse NOME exato no banco (ignora maiúsculas/minúsculas)
+        // Valida se a sessão existe e obtém hash da senha
+        const sessionRef = ref(db, `safeexam_sessions/${state.sessionId}`);
+        const sessionSnap = await get(sessionRef);
+        const sessionData = sessionSnap.val();
+
+        if (!sessionData) {
+            alert("Esta sala de prova não existe ou expirou.");
+            btnStartExam.textContent = "Entrar em Modo Seguro";
+            btnStartExam.disabled = false;
+            return;
+        }
+
+        if (sessionData.status === 'finished') {
+            alert("Esta avaliação já foi encerrada pelo aplicador.");
+            btnStartExam.textContent = "Entrar em Modo Seguro";
+            btnStartExam.disabled = false;
+            return;
+        }
+
+        // Armazena hash da senha em memória para validação offline segura
+        if (sessionData.localPassword) {
+            state.localPasswordHash = await sha256(sessionData.localPassword);
+        }
+
+        // Atualiza a URL com a versão tratada da sessão
+        if (sessionData.examUrl) {
+            state.examUrl = sanitizeExamUrl(sessionData.examUrl);
+        }
+
+        // Localiza ou cria ID do aluno
         const allStudentsRef = ref(db, `safeexam_sessions/${state.sessionId}/students`);
         const snapshot = await get(allStudentsRef);
         const students = snapshot.val() || {};
         
         let existingId = null;
         for (const id in students) {
-            if (students[id].name.toLowerCase() === state.studentName.toLowerCase()) {
+            if (students[id].name && students[id].name.toLowerCase() === state.studentName.toLowerCase()) {
                 existingId = id;
                 break;
             }
         }
         
         if (existingId) {
-            // Achou o nome! Reutiliza a sessão inteira do aluno, não importa o PC
             state.studentId = existingId;
         } else {
-            // Tenta pegar da memória local ou cria um novo
             const savedIdKey = `safeexam_student_${state.sessionId}`;
             let studentId = localStorage.getItem(savedIdKey);
             if (!studentId) {
@@ -466,7 +534,7 @@ btnStartExam.addEventListener('click', async () => {
 
         const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
         
-        // Define o que acontece se o aluno perder a conexão
+        // Marca como offline ao desconectar
         onDisconnect(studentRef).update({ connection: 'offline' });
         
         await update(studentRef, {
@@ -476,18 +544,17 @@ btnStartExam.addEventListener('click', async () => {
             lastPing: serverTimestamp()
         });
         
-        // Heartbeat: envia um "pulso" a cada 10 segundos para o dashboard saber que estamos vivos
+        // Heartbeat a cada 10 segundos
         setInterval(() => {
             update(studentRef, { lastPing: serverTimestamp(), connection: 'online' }).catch(() => {});
         }, 10000);
         
         startSecureExam();
         
-        // Fica escutando o próprio documento para saber se foi desbloqueado ou removido remotamente
+        // Escuta atualizações do próprio aluno (ex: desbloqueio remoto)
         onValue(studentRef, (snapshot) => {
             const data = snapshot.val();
             
-            // Se o dado ficou nulo, significa que o professor apagou esse aluno do banco
             if (!data) {
                 alert("Você foi removido da sala pelo aplicador.");
                 localStorage.removeItem(`safeexam_student_${state.sessionId}`);
@@ -500,8 +567,7 @@ btnStartExam.addEventListener('click', async () => {
             }
         });
 
-        // Escuta o status geral da sala para ver se o professor a encerrou
-        const sessionRef = ref(db, `safeexam_sessions/${state.sessionId}`);
+        // Escuta status geral da sala
         onValue(sessionRef, (snap) => {
             const session = snap.val();
             if (session && session.status === 'finished') {
@@ -512,7 +578,7 @@ btnStartExam.addEventListener('click', async () => {
         });
 
     } catch (error) {
-        alert("Erro ao conectar à sala. Verifique a internet e tente novamente.");
+        alert("Erro ao conectar à sala. Verifique sua conexão e tente novamente.");
         console.error(error);
         btnStartExam.textContent = "Entrar em Modo Seguro";
         btnStartExam.disabled = false;
@@ -520,7 +586,7 @@ btnStartExam.addEventListener('click', async () => {
 });
 
 // =========================================
-// LÓGICA DE SEGURANÇA E AMBIENTE (ALUNO)
+// AMBIENTE SEGURO DA PROVA (ALUNO)
 // =========================================
 function startSecureExam() {
     enterFullscreen();
@@ -539,40 +605,74 @@ function enterFullscreen() {
         rfs.call(el).then(() => {
             state.isFullscreen = true;
             overlayFullscreen.classList.add('hidden');
-        }).catch(err => console.warn(err));
+        }).catch(err => {
+            console.warn("Fullscreen request denied or pending user gesture", err);
+        });
     }
 }
 
 document.addEventListener('fullscreenchange', () => {
     state.isFullscreen = !!document.fullscreenElement;
-    if (!state.isFullscreen && state.isSecureMode) {
+    if (!state.isFullscreen && state.isSecureMode && !state.isBlocked) {
         registerInfraction('Saiu do modo de tela cheia');
     }
 });
 
 $('#btn-reenter-fullscreen').addEventListener('click', enterFullscreen);
 
-// Atalhos e Visibilidade
+// =========================================
+// MONITORES DE SEGURANÇA E INFRAÇÕES
+// =========================================
 function attachSecurityListeners() {
+    // 1. Bloqueio de Teclas
     document.addEventListener('keydown', onKeyDown, true);
+    
+    // 2. Bloqueio de Botão Direito
     document.addEventListener('contextmenu', (e) => {
         if (!state.isSecureMode) return;
         e.preventDefault();
-        registerInfraction('Botão direito desativado');
+        registerInfraction('Tentativa de abrir menu de contexto (Botão direito)');
     }, true);
     
+    // 3. Mudança de Aba / Minimização
     document.addEventListener('visibilitychange', () => {
-        if (state.isSecureMode && document.hidden) registerInfraction('Mudou de aba ou minimizou');
+        if (state.isSecureMode && document.hidden) {
+            registerInfraction('Mudou de aba ou minimizou a janela');
+        }
     });
 
+    // 4. Perda de Foco (Tratado com exclusão de foco no Iframe da prova)
     window.addEventListener('blur', () => {
         setTimeout(() => {
-            if (state.isSecureMode && !document.hasFocus()) registerInfraction('Janela perdeu o foco');
-        }, 200);
+            if (!state.isSecureMode || state.isBlocked) return;
+            
+            // Se o foco foi transferido para dentro do iframe da prova, é interação normal!
+            if (document.activeElement === examIframe || document.activeElement?.tagName === 'IFRAME') {
+                return;
+            }
+            
+            // Se o documento realmente perdeu o foco para outro aplicativo/desktop
+            if (!document.hasFocus()) {
+                registerInfraction('Janela da avaliação perdeu o foco');
+            }
+        }, 300);
     });
 
+    // 5. Prevenção de fechamento acidental
     window.addEventListener('beforeunload', (e) => {
-        if (state.isSecureMode) e.returnValue = 'Sair encerrará a prova.';
+        if (state.isSecureMode) {
+            e.preventDefault();
+            e.returnValue = 'Sair desta página encerrará a sua prova.';
+            return e.returnValue;
+        }
+    });
+
+    // 6. Prevenção de navegação de voltar/avançar no histórico
+    history.pushState(null, null, window.location.href);
+    window.addEventListener('popstate', () => {
+        if (state.isSecureMode) {
+            history.pushState(null, null, window.location.href);
+        }
     });
 }
 
@@ -580,14 +680,36 @@ function onKeyDown(e) {
     if (!state.isSecureMode) return;
     const key = e.key?.toLowerCase();
     
-    if (/^f\d+$/i.test(key) || 
-        (e.ctrlKey || e.metaKey) || 
-        (e.altKey && (key === 'tab' || key === 'f4')) || 
-        key === 'printscreen' || key === 'escape') {
-        
+    // Bloquear Teclas de Função (F1 a F12)
+    if (/^f\d+$/i.test(key)) {
         e.preventDefault();
         e.stopPropagation();
-        registerInfraction(`Atalho proibido bloqueado`);
+        registerInfraction(`Tecla de função bloqueada (${e.key})`);
+        return;
+    }
+
+    // Bloquear atalhos com Ctrl ou Meta/Command
+    if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        registerInfraction(`Atalho com ${e.ctrlKey ? 'Ctrl' : 'Cmd'} bloqueado`);
+        return;
+    }
+
+    // Bloquear atalhos com Alt
+    if (e.altKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        registerInfraction(`Atalho com Alt bloqueado`);
+        return;
+    }
+
+    // Bloquear PrintScreen e Escape
+    if (key === 'printscreen') {
+        e.preventDefault();
+        e.stopPropagation();
+        registerInfraction('Captura de tela (PrintScreen) bloqueada');
+        return;
     }
 }
 
@@ -595,10 +717,9 @@ function onKeyDown(e) {
 // REGISTRO DE INFRAÇÃO E BLOQUEIO (ALUNO)
 // =========================================
 async function registerInfraction(reason) {
-    if (state.isBlocked) return; // Já tá bloqueado
+    if (state.isBlocked || !state.isSecureMode) return;
     
     state.isBlocked = true;
-    
     const time = new Date().toLocaleTimeString('pt-BR');
     
     // Atualiza Firebase
@@ -608,7 +729,9 @@ async function registerInfraction(reason) {
         
         await update(studentRef, { status: 'blocked' });
         await set(push(infractionsRef), { time, reason });
-    } catch(e) { console.error("Erro salvando infração", e); }
+    } catch (e) {
+        console.error("Erro ao registrar infração no Firebase:", e);
+    }
 
     // Atualiza UI Local
     blockedReason.textContent = reason;
@@ -617,21 +740,46 @@ async function registerInfraction(reason) {
     $('#input-unlock-password').value = '';
     
     const li = document.createElement('li');
-    li.textContent = `${time} - ${reason}`;
+    li.textContent = `${time} — ${reason}`;
     infractionLog.appendChild(li);
     $('#infraction-count').textContent = parseInt($('#infraction-count').textContent) + 1;
 }
 
-// Desbloqueio Presencial
+// =========================================
+// DESBLOQUEIO PRESENCIAL (SENHA LOCAL)
+// =========================================
 $('#form-unlock').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if ($('#input-unlock-password').value === state.localPassword) {
-        // Atualiza Firebase pra active
-        const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
-        await update(studentRef, { status: 'active' });
-        // unblockExamLocal() será chamado pelo onValue!
+    const enteredPwd = $('#input-unlock-password').value;
+    const enteredHash = await sha256(enteredPwd);
+
+    let isMatch = false;
+
+    // 1. Tenta validar via hash SHA-256 local
+    if (state.localPasswordHash && enteredHash === state.localPasswordHash) {
+        isMatch = true;
     } else {
-        alert('Senha incorreta!');
+        // 2. Se a senha foi alterada na sessão durante a prova, verifica no Firebase
+        try {
+            const sessionSnap = await get(ref(db, `safeexam_sessions/${state.sessionId}`));
+            const session = sessionSnap.val();
+            if (session && session.localPassword === enteredPwd) {
+                isMatch = true;
+                state.localPasswordHash = enteredHash;
+            }
+        } catch (err) {
+            console.warn("Erro ao consultar Firebase para desbloqueio:", err);
+        }
+    }
+
+    if (isMatch) {
+        try {
+            const studentRef = ref(db, `safeexam_sessions/${state.sessionId}/students/${state.studentId}`);
+            await update(studentRef, { status: 'active' });
+        } catch (e) { }
+        unblockExamLocal();
+    } else {
+        alert('Senha incorreta! Solicite ao aplicador para realizar o desbloqueio.');
     }
 });
 
@@ -639,15 +787,14 @@ function unblockExamLocal() {
     state.isBlocked = false;
     overlayBlocked.classList.add('hidden');
     
-    // Navegadores bloqueiam requestFullscreen sem clique direto do usuário.
-    // Portanto, se ele não estiver em tela cheia, mostramos o aviso para ele clicar.
+    // Se saiu de tela cheia, exibe overlay suave para o aluno clicar e reentrar
     if (!state.isFullscreen) {
         overlayFullscreen.classList.remove('hidden');
     }
 }
 
 // =========================================
-// WEBSOCKET (BLOQUEADOR NATIVO WINDOWS)
+// WEBSOCKET (INTEGRAÇÃO BLOQUEADOR NATIVO)
 // =========================================
 function connectToBlocker() {
     if (state.wsConnection) return;
@@ -659,15 +806,18 @@ function connectToBlocker() {
         ws.onopen = () => {
             state.isBlockerConnected = true;
             state.wsConnection = ws;
-            blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success);">Bloqueador conectado!</span>`;
+            blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success);">Bloqueador nativo conectado com sucesso!</span>`;
             btnStartExam.disabled = false;
         };
         ws.onclose = () => {
             state.isBlockerConnected = false;
             state.wsConnection = null;
             btnStartExam.disabled = true;
-            if (state.isSecureMode) registerInfraction('O bloqueador nativo foi fechado.');
-            else if (state.isWindows) setTimeout(connectToBlocker, 2000);
+            if (state.isSecureMode) {
+                registerInfraction('O aplicativo bloqueador nativo foi encerrado.');
+            } else if (state.isWindows && globalSettings.requireBlocker) {
+                setTimeout(connectToBlocker, 2000);
+            }
         };
         ws.onerror = () => {};
     } catch (e) {
