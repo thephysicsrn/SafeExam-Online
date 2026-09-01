@@ -223,14 +223,17 @@
             </div>
 
             <!-- NATIVE BLOCKER AREA -->
-            <div id="native-blocker-area" class="rules-card" style="display: none; border-color: var(--warning);">
+            <div id="native-blocker-area" class="rules-card" style="border-color: var(--warning); margin-top: 20px;">
                 <h3 style="color: var(--warning);">⚡ Executar em Tela Cheia Nativa (Windows)</h3>
                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-                    Baixe o inicializador leve (1 KB) que abre o Educat SESI imediatamente no navegador em modo Kiosk de tela cheia.
+                    Baixe o inicializador leve (1 KB) que abre o Educat SESI imediatamente no navegador em modo Kiosk de tela cheia real.
                 </p>
-                <a href="SafeExam.bat" download="SafeExam.bat" class="btn-primary" style="background: var(--warning); color: #000; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    📥 Baixar SafeExam (Windows — 1 KB)
-                </a>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <a href="SafeExam.bat" download="SafeExam.bat" class="btn-primary" style="background: var(--warning); color: #000; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px;">
+                        📥 Baixar SafeExam (Windows — 1 KB)
+                    </a>
+                </div>
+                <div id="blocker-status" style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); display: none;"></div>
             </div>
 
             <button type="button" class="btn-primary btn-start" id="btn-start-exam">

@@ -186,18 +186,20 @@ function handleRoute() {
             return;
         }
 
+        // Mostra a tela do aluno imediatamente
+        showScreen('student');
+
         // Detecta Windows para sugerir o lançador nativo Kiosk
         state.isWindows = navigator.userAgent.toLowerCase().indexOf('windows') !== -1;
-        if (state.isWindows && globalSettings.requireBlocker) {
+        if (nativeBlockerArea) {
             nativeBlockerArea.style.display = 'block';
-            btnStartExam.disabled = false;
-            connectToBlocker();
-        } else {
-            nativeBlockerArea.style.display = 'none';
+        }
+        if (btnStartExam) {
             btnStartExam.disabled = false;
         }
-
-        showScreen('student');
+        try {
+            connectToBlocker();
+        } catch (e) { }
     } else {
         showScreen('setup');
     }
@@ -835,15 +837,20 @@ function unblockExamLocal() {
 function connectToBlocker() {
     if (state.wsConnection) return;
 
-    blockerStatus.innerHTML = `<div class="status-dot" style="background: var(--warning); animation: blink 1s infinite;"></div><span>Aguardando execução do bloqueador...</span>`;
+    if (blockerStatus) {
+        blockerStatus.style.display = 'block';
+        blockerStatus.innerHTML = `<div class="status-dot" style="background: var(--warning); animation: blink 1s infinite;"></div><span>Aguardando execução do bloqueador...</span>`;
+    }
 
     try {
         const ws = new WebSocket('ws://127.0.0.1:8765');
         ws.onopen = () => {
             state.isBlockerConnected = true;
             state.wsConnection = ws;
-            blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success討);">Bloqueador nativo conectado com sucesso!</span>`;
-            btnStartExam.disabled = false;
+            if (blockerStatus) {
+                blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success);">Bloqueador nativo conectado com sucesso!</span>`;
+            }
+            if (btnStartExam) btnStartExam.disabled = false;
         };
         ws.onmessage = (event) => {
             try {
@@ -856,15 +863,15 @@ function connectToBlocker() {
         ws.onclose = () => {
             state.isBlockerConnected = false;
             state.wsConnection = null;
-            btnStartExam.disabled = false;
+            if (btnStartExam) btnStartExam.disabled = false;
             if (state.isSecureMode) {
                 registerInfraction('O aplicativo bloqueador nativo foi encerrado.');
-            } else if (state.isWindows && globalSettings.requireBlocker) {
-                setTimeout(connectToBlocker, 2000);
+            } else if (state.isWindows) {
+                setTimeout(connectToBlocker, 3000);
             }
         };
         ws.onerror = () => {};
     } catch (e) {
-        setTimeout(connectToBlocker, 2000);
+        setTimeout(connectToBlocker, 3000);
     }
 }
