@@ -590,12 +590,28 @@ btnStartExam.addEventListener('click', async () => {
 // =========================================
 function startSecureExam() {
     enterFullscreen();
-    examIframe.src = state.examUrl;
     topbarStudentName.textContent = state.studentName;
     state.isSecureMode = true;
     document.body.classList.add('no-select');
     showScreen('exam');
     attachSecurityListeners();
+
+    // Se estiver conectado ao SafeExam Blocker nativo (Windows), lança em Modo Kiosk Top-Level
+    if (state.isBlockerConnected && state.wsConnection && state.wsConnection.readyState === WebSocket.OPEN) {
+        try {
+            state.wsConnection.send(JSON.stringify({
+                action: "launch_kiosk",
+                url: state.examUrl,
+                studentName: state.studentName,
+                sessionId: state.sessionId
+            }));
+        } catch (err) {
+            console.warn("Erro ao enviar comando kiosk:", err);
+        }
+    } else {
+        // Modo web comum (iframe)
+        examIframe.src = state.examUrl;
+    }
 }
 
 function enterFullscreen() {
@@ -808,6 +824,14 @@ function connectToBlocker() {
             state.wsConnection = ws;
             blockerStatus.innerHTML = `<div class="status-dot active" style="background: var(--success); animation: none;"></div><span style="color: var(--success);">Bloqueador nativo conectado com sucesso!</span>`;
             btnStartExam.disabled = false;
+        };
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.event === "kiosk_closed" && state.isSecureMode && !state.isBlocked) {
+                    registerInfraction('A janela segura da prova foi fechada pelo aluno.');
+                }
+            } catch (e) { }
         };
         ws.onclose = () => {
             state.isBlockerConnected = false;
