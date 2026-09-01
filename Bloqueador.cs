@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -8,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace SafeExamBlocker
 {
@@ -361,6 +363,83 @@ namespace SafeExamBlocker
             return json.Substring(startQuote + 1, endQuote - startQuote - 1);
         }
 
+        private static string GetBrowserPath()
+        {
+            List<string> candidates = new List<string>();
+
+            // 1. Registro do Windows (App Paths)
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe"))
+                {
+                    if (key != null)
+                    {
+                        string regPath = key.GetValue("") as string;
+                        if (!string.IsNullOrEmpty(regPath)) candidates.Add(regPath);
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"))
+                {
+                    if (key != null)
+                    {
+                        string regPath = key.GetValue("") as string;
+                        if (!string.IsNullOrEmpty(regPath)) candidates.Add(regPath);
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Variáveis de ambiente diretas (ignora redirecionamento WOW64 de 32-bits)
+            string prog64 = Environment.GetEnvironmentVariable("ProgramW6432");
+            string progX86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
+            string progDefault = Environment.GetEnvironmentVariable("ProgramFiles");
+            string localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+            if (!string.IsNullOrEmpty(progX86))
+                candidates.Add(Path.Combine(progX86, @"Microsoft\Edge\Application\msedge.exe"));
+            if (!string.IsNullOrEmpty(prog64))
+                candidates.Add(Path.Combine(prog64, @"Microsoft\Edge\Application\msedge.exe"));
+            if (!string.IsNullOrEmpty(progDefault))
+                candidates.Add(Path.Combine(progDefault, @"Microsoft\Edge\Application\msedge.exe"));
+            if (!string.IsNullOrEmpty(localApp))
+                candidates.Add(Path.Combine(localApp, @"Microsoft\Edge\Application\msedge.exe"));
+
+            // Chrome como alternativa
+            if (!string.IsNullOrEmpty(progDefault))
+                candidates.Add(Path.Combine(progDefault, @"Google\Chrome\Application\chrome.exe"));
+            if (!string.IsNullOrEmpty(progX86))
+                candidates.Add(Path.Combine(progX86, @"Google\Chrome\Application\chrome.exe"));
+            if (!string.IsNullOrEmpty(prog64))
+                candidates.Add(Path.Combine(prog64, @"Google\Chrome\Application\chrome.exe"));
+            if (!string.IsNullOrEmpty(localApp))
+                candidates.Add(Path.Combine(localApp, @"Google\Chrome\Application\chrome.exe"));
+
+            // Caminhos fixos clássicos
+            candidates.Add(@"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe");
+            candidates.Add(@"C:\Program Files\Microsoft\Edge\Application\msedge.exe");
+            candidates.Add(@"C:\Program Files\Google\Chrome\Application\chrome.exe");
+            candidates.Add(@"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe");
+
+            foreach (string path in candidates)
+            {
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        return path;
+                    }
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
         private static void LaunchKioskBrowser(string url)
         {
             try
@@ -368,46 +447,40 @@ namespace SafeExamBlocker
                 CloseKioskBrowser();
 
                 _tempProfileDir = Path.Combine(Path.GetTempPath(), "SafeExam_Profile_" + Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(_tempProfileDir);
+                try { Directory.CreateDirectory(_tempProfileDir); } catch { }
 
-                // Localiza o executável do Microsoft Edge ou Google Chrome no Windows
-                string edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Microsoft\Edge\Application\msedge.exe");
-                if (!File.Exists(edgePath))
-                {
-                    edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Microsoft\Edge\Application\msedge.exe");
-                }
-                if (!File.Exists(edgePath))
-                {
-                    edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
-                }
-                if (!File.Exists(edgePath))
-                {
-                    edgePath = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
-                }
-                if (!File.Exists(edgePath))
-                {
-                    edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\Edge\Application\msedge.exe");
-                }
-                if (!File.Exists(edgePath))
-                {
-                    edgePath = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
-                }
-                if (!File.Exists(edgePath))
-                {
-                    edgePath = @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe";
-                }
-
-                // Argumentos do Chromium Kiosk Mode: Top-level Window com tela cheia real sem barras
+                string browserPath = GetBrowserPath();
                 string args = $"--kiosk \"{url}\" --edge-kiosk-type=fullscreen --no-first-run --no-default-browser-check --disable-pinch --disable-translate --user-data-dir=\"{_tempProfileDir}\" --app=\"{url}\"";
 
-                ProcessStartInfo psi = new ProcessStartInfo
+                ProcessStartInfo psi;
+
+                if (!string.IsNullOrEmpty(browserPath) && File.Exists(browserPath))
                 {
-                    FileName = File.Exists(edgePath) ? edgePath : "msedge.exe",
-                    Arguments = args,
-                    UseShellExecute = false
-                };
+                    Console.WriteLine($"[NAVEGADOR] Executável localizado: {browserPath}");
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = browserPath,
+                        Arguments = args,
+                        UseShellExecute = false
+                    };
+                }
+                else
+                {
+                    Console.WriteLine("[NAVEGADOR] Usando inicializador padrão do Windows (cmd start msedge)...");
+                    psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c start \"\" msedge.exe {args}",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                }
 
                 _kioskBrowserProcess = Process.Start(psi);
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("[NAVEGADOR] Processo do navegador iniciado com sucesso!");
+                Console.ResetColor();
+
                 if (_kioskBrowserProcess != null)
                 {
                     _kioskBrowserProcess.EnableRaisingEvents = true;
@@ -430,7 +503,21 @@ namespace SafeExamBlocker
             {
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("[ERRO AO ABRIR BROWSER] " + ex.Message);
+                Console.WriteLine("[TENTANDO FALLBACK COM NAVEGADOR PADRÃO...]");
                 Console.ResetColor();
+
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = url,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex2)
+                {
+                    Console.WriteLine("[FALHA FALLBACK] " + ex2.Message);
+                }
             }
         }
 
